@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#183b34" />
+    <title>TalentMatch | Recruiting workspace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #202b27;
+        --muted: #77817c;
+        --line: #e2e8e2;
+        --paper: #ffffff;
+        --canvas: #f4f6f2;
+        --forest: #183b34;
+        --forest-2: #285b4d;
+        --mint: #dcefe3;
+        --lime: #d8ed83;
+        --coral: #e5816e;
+        --amber: #f1c773;
+        --shadow: 0 14px 34px rgba(30, 54, 43, .06);
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: "DM Sans", sans-serif;
+        font-size: 14px;
+      }
+      button, input, textarea, select { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+        outline: 3px solid rgba(72, 142, 111, .35);
+        outline-offset: 2px;
+      }
+      .app-shell { min-width: 0; min-height: 100vh; }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 5;
+        display: flex;
+        width: 236px;
+        flex-direction: column;
+        padding: 27px 17px 20px;
+        background: var(--forest);
+        color: #f6f8f4;
+      }
+      .brand { display: flex; align-items: center; gap: 11px; padding: 0 11px; }
+      .brand-mark {
+        display: grid;
+        width: 35px;
+        height: 35px;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--lime);
+        color: var(--forest);
+        font-family: Manrope, sans-serif;
+        font-weight: 800;
+      }
+      .brand-name { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; }
+      .brand-caption { margin-top: 2px; color: #a8c0b5; font-size: 11px; }
+      .nav-label { margin: 43px 12px 12px; color: #91aca0; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+      .side-nav { display: grid; gap: 5px; }
+      .side-nav a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 12px;
+        border-radius: 5px;
+        color: #c3d2ca;
+        text-decoration: none;
+        transition: background .18s ease, color .18s ease;
+      }
+      .side-nav a:hover, .side-nav a.active { background: rgba(255,255,255,.1); color: white; }
+      .nav-icon { display: grid; width: 20px; place-items: center; color: var(--lime); font-weight: 700; }
+      .sidebar-bottom { margin-top: auto; padding: 14px 12px 0; border-top: 1px solid rgba(255,255,255,.14); }
+      .connection { display: flex; align-items: center; gap: 9px; color: #dce8e1; font-size: 12px; }
+      .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #a7dc84; box-shadow: 0 0 0 4px rgba(167,220,132,.13); }
+      .connection-note { margin: 8px 0 0 17px; color: #91aca0; font-size: 11px; }
+
+      .main { min-width: 0; min-height: 100vh; margin-left: 236px; padding: 34px clamp(22px, 4vw, 58px) 56px; }
+      .content { width: min(1200px, 100%); min-width: 0; margin: 0 auto; }
+      .page-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+      .eyebrow { margin: 0 0 8px; color: var(--forest-2); font-size: 11px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1, h2, h3 { font-family: Manrope, sans-serif; }
+      h1 { margin-bottom: 6px; font-size: clamp(25px, 3vw, 34px); line-height: 1.15; }
+      .page-subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+      .top-actions { display: flex; align-items: center; gap: 10px; }
+      .date-chip { color: var(--muted); font-size: 12px; white-space: nowrap; }
+      .button {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 15px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background: var(--forest);
+        color: white;
+        font-weight: 700;
+        transition: background .18s ease, transform .18s ease;
+      }
+      .button:hover { transform: translateY(-1px); background: var(--forest-2); }
+      .button-primary { background: var(--lime); color: var(--forest); }
+      .button-primary:hover { background: #cce56c; }
+      .button-quiet { border-color: var(--line); background: white; color: var(--ink); }
+      .button-quiet:hover { background: #f8faf7; }
+      .button-danger { border-color: #f1d6d1; background: #fff8f6; color: #a84e41; }
+      .button-danger:hover { background: #ffede8; }
+      .button-small { min-height: 32px; padding: 0 10px; font-size: 12px; }
+
+      .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-bottom: 29px; }
+      .stat-card { position: relative; min-height: 112px; overflow: hidden; padding: 18px 19px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); box-shadow: var(--shadow); }
+      .stat-card::after { position: absolute; right: -18px; bottom: -33px; width: 84px; height: 84px; border-radius: 50%; background: var(--stat-accent, var(--mint)); content: ""; opacity: .75; }
+      .stat-top { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; font-weight: 600; }
+      .stat-mark { position: relative; z-index: 1; display: grid; width: 27px; height: 27px; place-items: center; border-radius: 4px; background: var(--stat-accent, var(--mint)); color: var(--forest); font-weight: 800; }
+      .stat-value { position: relative; z-index: 1; margin-top: 11px; font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; line-height: 1; }
+
+      .section { margin-top: 31px; scroll-margin-top: 20px; }
+      .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-bottom: 14px; }
+      .section-heading h2 { margin: 0 0 4px; font-size: 18px; }
+      .section-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+      .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, .85fr); gap: 14px; }
+      .panel { border: 1px solid var(--line); border-radius: 5px; background: var(--paper); box-shadow: var(--shadow); }
+      .match-panel { padding: 21px; }
+      .panel-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+      .panel-title h3 { margin: 0 0 4px; font-size: 15px; }
+      .panel-title p { margin: 0; color: var(--muted); font-size: 12px; }
+      .mini-label { color: var(--forest-2); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+      .match-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+      .field label { display: block; margin-bottom: 7px; color: #525e58; font-size: 12px; font-weight: 700; }
+      .field input, .field textarea, .field select, .search-input {
+        width: 100%;
+        min-height: 41px;
+        padding: 10px 11px;
+        border: 1px solid #dbe3dc;
+        border-radius: 4px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .field textarea { min-height: 104px; resize: vertical; }
+      .source-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 15px 0 13px; }
+      .source-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+      .segmented { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 4px; background: #f5f7f4; }
+      .segmented label { position: relative; padding: 7px 10px; border-radius: 3px; color: #68736d; cursor: pointer; font-size: 11px; font-weight: 600; }
+      .segmented input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+      .segmented label:has(input:checked) { background: white; color: var(--forest); box-shadow: 0 1px 4px rgba(24,59,52,.12); }
+      .folder-field { margin-bottom: 13px; }
+      .folder-field[hidden] { display: none; }
+      .match-status { min-height: 18px; margin: 11px 0 0; color: var(--muted); font-size: 12px; }
+      .match-status.error { color: #a84e41; }
+      .result-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 23px 0 8px; }
+      .result-head h3 { margin: 0; font-size: 13px; }
+      .result-count { color: var(--muted); font-size: 11px; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; text-align: left; }
+      th { padding: 10px 8px; border-bottom: 1px solid var(--line); color: #818c85; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+      td { padding: 11px 8px; border-bottom: 1px solid #edf0ec; vertical-align: middle; }
+      tbody tr:last-child td { border-bottom: 0; }
+      .match-table { min-width: 460px; font-size: 12px; }
+      .person-cell { display: flex; align-items: center; gap: 9px; min-width: 135px; }
+      .avatar { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--mint); color: var(--forest); font-size: 10px; font-weight: 800; }
+      .person-name { font-weight: 700; }
+      .score-pill { display: inline-flex; min-width: 52px; align-items: center; justify-content: center; padding: 5px 7px; border-radius: 3px; background: #edf5d9; color: #476322; font-weight: 800; }
+      .skill-list { display: flex; flex-wrap: wrap; gap: 4px; }
+      .skill-tag { display: inline-block; padding: 4px 6px; border-radius: 3px; background: #eff3ef; color: #52625a; font-size: 10px; }
+      .empty-cell { padding: 24px 8px; color: var(--muted); text-align: center; }
+      .jobs-panel { padding: 20px; }
+      .jobs-list { display: grid; gap: 8px; }
+      .job-card { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 4px; transition: border-color .18s ease, background .18s ease; }
+      .job-card.selected { border-color: #9abfa9; background: #f3f8f2; }
+      .job-select { padding: 0; border: 0; background: none; color: var(--ink); text-align: left; }
+      .job-title { display: block; overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .job-description { display: -webkit-box; overflow: hidden; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+      .job-meta { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #edf0ec; color: var(--muted); font-size: 10px; }
+      .text-button { padding: 4px; border: 0; background: transparent; color: #a84e41; font-size: 11px; font-weight: 700; }
+      .empty-note { padding: 18px 10px; border: 1px dashed #d4ded5; border-radius: 4px; color: var(--muted); font-size: 12px; text-align: center; }
+
+      .candidate-panel { overflow: hidden; }
+      .candidate-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 19px; border-bottom: 1px solid var(--line); }
+      .search-wrap { position: relative; width: min(340px, 100%); }
+      .search-wrap::before { position: absolute; top: 12px; left: 11px; color: #7b8981; content: " / "; font-size: 13px; font-weight: 800; }
+      .search-input { min-height: 37px; padding-left: 30px; font-size: 12px; }
+      .candidate-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; min-height: 270px; }
+      .candidate-table-wrap { min-width: 0; overflow-x: auto; }
+      .candidate-table { min-width: 520px; font-size: 12px; }
+      .candidate-table th:first-child, .candidate-table td:first-child { padding-left: 19px; }
+      .candidate-table th:last-child, .candidate-table td:last-child { padding-right: 19px; text-align: right; }
+      .candidate-row { cursor: pointer; transition: background .15s ease; }
+      .candidate-row:hover, .candidate-row.active { background: #f4f8f3; }
+      .candidate-contact { margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .candidate-detail { padding: 20px; border-left: 1px solid var(--line); background: #fbfcfa; }
+      .detail-placeholder { display: grid; min-height: 220px; align-content: center; justify-items: center; color: var(--muted); text-align: center; }
+      .detail-placeholder .avatar { width: 42px; height: 42px; margin-bottom: 11px; font-size: 13px; }
+      .detail-placeholder p { max-width: 170px; margin: 0; font-size: 11px; line-height: 1.5; }
+      .detail-name { margin: 0 0 4px; font-size: 16px; }
+      .detail-contact { margin: 0 0 17px; color: var(--muted); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+      .detail-label { margin: 13px 0 6px; color: #89938d; font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+      .resume-excerpt { max-height: 106px; overflow: auto; margin: 0; color: #59655e; font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
+      .detail-empty { color: var(--muted); font-size: 11px; }
+      .toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; max-width: min(380px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 4px; background: var(--forest); color: white; box-shadow: 0 8px 24px rgba(20,40,30,.2); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+      .toast.show { opacity: 1; transform: translateY(0); }
+
+      dialog { width: min(480px, calc(100% - 28px)); padding: 0; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); box-shadow: 0 24px 80px rgba(18,43,34,.25); }
+      dialog::backdrop { background: rgba(20, 40, 32, .42); backdrop-filter: blur(2px); }
+      .dialog-inner { padding: 24px; }
+      .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+      .dialog-head h2 { margin: 0 0 4px; font-size: 18px; }
+      .dialog-head p { margin: 0; color: var(--muted); font-size: 12px; }
+      .close-button { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--muted); font-size: 18px; line-height: 1; }
+      .dialog-fields { display: grid; gap: 14px; }
+      .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+      .file-input { padding: 9px !important; background: #fafbf9 !important; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+      .loading { opacity: .55; pointer-events: none; }
+
+      @media (max-width: 1050px) {
+        .sidebar { width: 205px; }
+        .main { margin-left: 205px; padding-right: 25px; padding-left: 25px; }
+        .workspace-grid { grid-template-columns: minmax(0, 1.3fr) minmax(260px, .8fr); }
+        .candidate-layout { grid-template-columns: minmax(0, 1fr) 240px; }
+      }
+      @media (max-width: 800px) {
+        .sidebar { position: sticky; inset: 0 0 auto; width: auto; height: auto; padding: 11px 16px; }
+        .app-shell { display: flex; flex-direction: column; }
+        .brand { padding: 0; }
+        .brand-mark { width: 31px; height: 31px; }
+        .brand-caption, .nav-label, .sidebar-bottom { display: none; }
+        .side-nav { display: flex; gap: 4px; margin-top: 11px; overflow-x: auto; }
+        .side-nav a { flex: 0 0 auto; padding: 8px 10px; font-size: 12px; }
+        .main { margin-left: 0; padding: 25px 20px 42px; }
+        .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+        .jobs-panel { order: 2; }
+      }
+      @media (max-width: 600px) {
+        .main { padding: 21px 14px 34px; }
+        .page-top { align-items: flex-start; margin-bottom: 22px; }
+        .page-top .top-actions { flex-direction: column-reverse; align-items: flex-end; }
+        .date-chip { display: none; }
+        .button { min-height: 38px; padding: 0 11px; font-size: 12px; }
+        .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-bottom: 23px; }
+        .stat-card { min-height: 100px; padding: 14px; }
+        .stat-value { font-size: 24px; }
+        .section { margin-top: 24px; }
+        .match-panel, .jobs-panel { padding: 16px; }
+        .match-fields { grid-template-columns: 1fr; }
+        .match-fields .button { width: 100%; }
+        .candidate-toolbar { align-items: stretch; flex-direction: column; padding: 13px; }
+        .candidate-toolbar .button { align-self: flex-start; }
+        .search-wrap { width: 100%; }
+        .candidate-layout { grid-template-columns: 1fr; }
+        .candidate-detail { border-top: 1px solid var(--line); border-left: 0; }
+        .detail-placeholder { min-height: 120px; }
+        .section-heading { align-items: flex-start; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">T</div>
+          <div><div class="brand-name">TalentMatch</div><div class="brand-caption">Recruiting workspace</div></div>
+        </div>
+        <div class="nav-label">Workspace</div>
+        <nav class="side-nav" aria-label="Main navigation">
+          <a class="active" href="#overview"><span class="nav-icon" aria-hidden="true">01</span>Overview</a>
+          <a href="#candidates"><span class="nav-icon" aria-hidden="true">02</span>Candidates</a>
+          <a href="#roles"><span class="nav-icon" aria-hidden="true">03</span>Open roles</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="connection"><span class="status-dot" id="apiStatusDot"></span><span id="apiStatus">Connecting to API</span></div>
+          <p class="connection-note">Talent pipeline workspace</p>
+        </div>
+      </aside>
+
+      <main class="main" id="overview">
+        <div class="content">
+          <header class="page-top">
+            <div>
+              <p class="eyebrow">Hiring workspace / Overview</p>
+              <h1>Recruiting overview</h1>
+              <p class="page-subtitle">Your candidate pipeline, at a glance.</p>
+            </div>
+            <div class="top-actions">
+              <span class="date-chip" id="todayLabel"></span>
+              <button class="button button-primary" id="openUploadBtn" type="button"><span aria-hidden="true">+</span> Add candidate</button>
+            </div>
+          </header>
+
+          <section class="stats-grid" aria-label="Pipeline metrics">
+            <article class="stat-card" style="--stat-accent: var(--mint)">
+              <div class="stat-top"><span>In your pipeline</span><span class="stat-mark" aria-hidden="true">C</span></div>
+              <div class="stat-value" id="candidateCount">0</div>
+            </article>
+            <article class="stat-card" style="--stat-accent: #e7edbd">
+              <div class="stat-top"><span>Open roles</span><span class="stat-mark" aria-hidden="true">R</span></div>
+              <div class="stat-value" id="activeJobsCount">0</div>
+            </article>
+            <article class="stat-card" style="--stat-accent: #f8dfd5">
+              <div class="stat-top"><span>Average match</span><span class="stat-mark" aria-hidden="true">%</span></div>
+              <div class="stat-value" id="avgScore">0%</div>
+            </article>
+            <article class="stat-card" style="--stat-accent: #f4e4b9">
+              <div class="stat-top"><span>Strong matches</span><span class="stat-mark" aria-hidden="true">+</span></div>
+              <div class="stat-value" id="qualifiedCount">0</div>
+            </article>
+          </section>
+
+          <section class="section" aria-labelledby="matchWorkspaceTitle">
+            <div class="section-heading">
+              <div><h2 id="matchWorkspaceTitle">Match workspace</h2><p>Compare candidate experience with an open role.</p></div>
+            </div>
+            <div class="workspace-grid">
+              <section class="panel match-panel">
+                <div class="panel-title">
+                  <div><div class="mini-label">Candidate matching</div><h3>Find the right fit</h3><p>Choose a role and candidate source to get started.</p></div>
+                </div>
+                <div class="match-fields">
+                  <div class="field">
+                    <label for="selectedJobId">Role</label>
+                    <select id="selectedJobId"><option value="">Create a role to begin</option></select>
+                  </div>
+                  <button class="button" id="runMatchBtn" type="button">Run match <span aria-hidden="true">&#8594;</span></button>
+                </div>
+                <div class="source-row">
+                  <span class="source-label">Candidate source</span>
+                  <div class="segmented" role="radiogroup" aria-label="Candidate source">
+                    <label><input type="radio" name="matchSource" value="database" checked />Saved candidates</label>
+                    <label><input type="radio" name="matchSource" value="folder" />Resume folder</label>
+                  </div>
+                </div>
+                <div class="field folder-field" id="folderField" hidden>
+                  <label for="resumeFolder">Resume folder path</label>
+                  <input id="resumeFolder" type="text" value="./sample_resumes" placeholder="./sample_resumes" />
+                </div>
+                <p class="match-status" id="matchStatus" role="status" aria-live="polite">Ready when you are.</p>
+                <div class="result-head"><h3>Latest results</h3><span class="result-count" id="resultCount">No matches yet</span></div>
+                <div class="table-wrap">
+                  <table class="match-table">
+                    <thead><tr><th>Candidate</th><th>Fit</th><th>Matched skills</th></tr></thead>
+                    <tbody id="resultsBody"><tr><td class="empty-cell" colspan="3">Choose a role to view its results.</td></tr></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="panel jobs-panel" id="roles" aria-labelledby="rolesTitle">
+                <div class="panel-title">
+                  <div><div class="mini-label">Your pipeline</div><h3 id="rolesTitle">Open roles</h3><p id="roleSummary">Roles and recent match activity.</p></div>
+                  <button class="button button-quiet button-small" id="openJobBtn" type="button"><span aria-hidden="true">+</span> New role</button>
+                </div>
+                <div class="jobs-list" id="jobsList"><div class="empty-note">Loading roles...</div></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section" id="candidates" aria-labelledby="candidatesTitle">
+            <div class="section-heading">
+              <div><h2 id="candidatesTitle">Candidate directory</h2><p>Review profiles and keep your shortlist moving.</p></div>
+            </div>
+            <section class="panel candidate-panel">
+              <div class="candidate-toolbar">
+                <div class="search-wrap"><label class="visually-hidden" for="candidateSearch">Search candidates</label><input class="search-input" id="candidateSearch" type="search" placeholder="Search name or email" /></div>
+                <button class="button button-quiet button-small" id="uploadFromDirectoryBtn" type="button"><span aria-hidden="true">+</span> Upload resume</button>
+              </div>
+              <div class="candidate-layout">
+                <div class="candidate-table-wrap">
+                  <table class="candidate-table">
+                    <thead><tr><th>Candidate</th><th>Skills</th><th>Profile</th></tr></thead>
+                    <tbody id="candidateRows"><tr><td class="empty-cell" colspan="3">Loading candidates...</td></tr></tbody>
+                  </table>
+                </div>
+                <aside class="candidate-detail" id="candidateDetail" aria-live="polite">
+                  <div class="detail-placeholder"><span class="avatar" aria-hidden="true">TM</span><p>Select a candidate to review their profile.</p></div>
+                </aside>
+              </div>
+            </section>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="jobDialog" aria-labelledby="jobDialogTitle">
+      <form class="dialog-inner" id="jobForm">
+        <div class="dialog-head"><div><h2 id="jobDialogTitle">Create an open role</h2><p>Set the role details used to find relevant candidates.</p></div><button class="close-button" type="button" data-close-dialog="jobDialog" aria-label="Close">&times;</button></div>
+        <div class="dialog-fields">
+          <div class="field"><label for="jobTitle">Job title</label><input id="jobTitle" name="title" required maxlength="140" placeholder="Senior Python Engineer" /></div>
+          <div class="field"><label for="jobDescription">Job description</label><textarea id="jobDescription" name="description" required placeholder="Describe the experience, skills, and responsibilities..."></textarea></div>
+        </div>
+        <div class="dialog-actions"><button class="button button-quiet" type="button" data-close-dialog="jobDialog">Cancel</button><button class="button" type="submit">Create role</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="uploadDialog" aria-labelledby="uploadDialogTitle">
+      <form class="dialog-inner" id="uploadForm">
+        <div class="dialog-head"><div><h2 id="uploadDialogTitle">Add a candidate</h2><p>Upload a resume to add a profile to your pipeline.</p></div><button class="close-button" type="button" data-close-dialog="uploadDialog" aria-label="Close">&times;</button></div>
+        <div class="dialog-fields">
+          <div class="field"><label for="candidateName">Candidate name <span style="color:var(--muted);font-weight:400">(optional)</span></label><input id="candidateName" name="candidate_name" placeholder="Jane Doe" /></div>
+          <div class="field"><label for="resumeFile">Resume file</label><input class="file-input" id="resumeFile" name="file" type="file" accept=".txt,.md,.csv,.pdf,.docx" required /></div>
+        </div>
+        <p class="match-status" id="uploadStatus" role="status" aria-live="polite"></p>
+        <div class="dialog-actions"><button class="button button-quiet" type="button" data-close-dialog="uploadDialog">Cancel</button><button class="button" type="submit">Upload resume</button></div>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const jobDialog = $('#jobDialog');
+      const uploadDialog = $('#uploadDialog');
+      const jobsList = $('#jobsList');
+      const selectedJobId = $('#selectedJobId');
+      const resultsBody = $('#resultsBody');
+      const candidateRows = $('#candidateRows');
+      const candidateDetail = $('#candidateDetail');
+      const matchStatus = $('#matchStatus');
+      let jobs = [];
+      let candidates = [];
+      let activeCandidateId = '';
+      let toastTimer;
+
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+      }
+
+      async function api(path, options = {}) {
+        const response = await fetch(path, options);
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+        return body;
+      }
+
+      function showToast(text) {
+        const toast = $('#toast');
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+      }
+
+      function setBusy(button, busy, label) {
+        if (!button.dataset.originalLabel) button.dataset.originalLabel = button.innerHTML;
+        button.disabled = busy;
+        button.classList.toggle('loading', busy);
+        button.innerHTML = busy ? label : button.dataset.originalLabel;
+      }
+
+      function initials(name) {
+        return String(name || '?').trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
+      }
+
+      function renderStats(stats) {
+        $('#activeJobsCount').textContent = stats.active_jobs ?? 0;
+        $('#candidateCount').textContent = stats.total_candidates ?? 0;
+        $('#avgScore').textContent = `${stats.average_score ?? 0}%`;
+        $('#qualifiedCount').textContent = stats.qualified_candidates ?? 0;
+        $('#roleSummary').textContent = `${stats.active_jobs ?? 0} ${stats.active_jobs === 1 ? 'role' : 'roles'} in your pipeline.`;
+      }
+
+      async function loadStats() {
+        renderStats(await api('/dashboard/stats'));
+      }
+
+      function renderResults(matches, emptyText = 'No matches yet. Run matching to see candidate fit.') {
+        const ranked = matches || [];
+        $('#resultCount').textContent = ranked.length ? `${ranked.length} ${ranked.length === 1 ? 'candidate' : 'candidates'}` : 'No matches yet';
+        resultsBody.innerHTML = ranked.length ? ranked.slice(0, 6).map((match) => `
+          <tr>
+            <td><div class="person-cell"><span class="avatar">${escapeHtml(initials(match.candidate_name || match.candidate_id))}</span><span class="person-name">${escapeHtml(match.candidate_name || match.candidate_id)}</span></div></td>
+            <td><span class="score-pill">${Number(match.score || 0).toFixed(0)}%</span></td>
+            <td><div class="skill-list">${(match.matched_skills || []).slice(0, 4).map((skill) => `<span class="skill-tag">${escapeHtml(skill)}</span>`).join('') || '<span class="detail-empty">No shared skills</span>'}</div></td>
+          </tr>`).join('') : `<tr><td class="empty-cell" colspan="3">${escapeHtml(emptyText)}</td></tr>`;
+      }
+
+      async function loadResults(jobId) {
+        if (!jobId) {
+          renderResults([], 'Create or select a role to view matches.');
+          return;
+        }
+        try {
+          renderResults(await api(`/jobs/${encodeURIComponent(jobId)}/results`), 'No saved matches for this role. Run matching to start a shortlist.');
+        } catch (error) {
+          renderResults([], error.message);
+        }
+      }
+
+      function renderJobs() {
+        const selectedId = selectedJobId.value;
+        selectedJobId.innerHTML = jobs.length ? jobs.map((job) => `<option value="${escapeHtml(job.id)}">${escapeHtml(job.title)}</option>`).join('') : '<option value="">Create a role to begin</option>';
+        if (jobs.some((job) => job.id === selectedId)) selectedJobId.value = selectedId;
+        const activeId = selectedJobId.value;
+        jobsList.innerHTML = jobs.length ? jobs.map((job) => `
+          <article class="job-card ${job.id === activeId ? 'selected' : ''}">
+            <button class="job-select" type="button" data-select-job="${escapeHtml(job.id)}" aria-label="Select ${escapeHtml(job.title)}">
+              <span class="job-title">${escapeHtml(job.title)}</span>
+              <span class="job-description">${escapeHtml(job.description)}</span>
+            </button>
+            <button class="text-button" type="button" data-delete-job="${escapeHtml(job.id)}" aria-label="Delete ${escapeHtml(job.title)}">Remove</button>
+            <div class="job-meta"><span>Role in pipeline</span><span>View matches &rarr;</span></div>
+          </article>`).join('') : '<div class="empty-note">No open roles yet. Create a role to start matching.</div>';
+        loadResults(activeId);
+      }
+
+      async function loadJobs() {
+        jobs = await api('/jobs');
+        renderJobs();
+      }
+
+      function renderCandidateDetail(candidate) {
+        const skills = candidate.skills || [];
+        const resume = candidate.resume_text || '';
+        candidateDetail.innerHTML = `
+          <div class="mini-label">Candidate profile</div>
+          <h3 class="detail-name">${escapeHtml(candidate.name)}</h3>
+          <p class="detail-contact">${escapeHtml(candidate.email || 'Email not provided')}<br>${escapeHtml(candidate.phone || 'Phone not provided')}</p>
+          <div class="detail-label">Experience</div><div class="detail-empty">${candidate.experience_years == null ? 'Not specified' : `${escapeHtml(candidate.experience_years)} years`}</div>
+          <div class="detail-label">Skills</div><div class="skill-list">${skills.length ? skills.map((skill) => `<span class="skill-tag">${escapeHtml(skill)}</span>`).join('') : '<span class="detail-empty">No skills recorded</span>'}</div>
+          <div class="detail-label">Resume preview</div><p class="resume-excerpt">${escapeHtml(resume.slice(0, 750))}${resume.length > 750 ? '...' : ''}</p>`;
+      }
+
+      function renderCandidates() {
+        const query = $('#candidateSearch').value.trim().toLowerCase();
+        const filtered = candidates.filter((candidate) => `${candidate.name} ${candidate.email}`.toLowerCase().includes(query));
+        candidateRows.innerHTML = filtered.length ? filtered.map((candidate) => `
+          <tr class="candidate-row ${candidate.id === activeCandidateId ? 'active' : ''}" data-candidate-row="${escapeHtml(candidate.id)}">
+            <td><div class="person-cell"><span class="avatar">${escapeHtml(initials(candidate.name))}</span><span><span class="person-name">${escapeHtml(candidate.name)}</span><span class="candidate-contact">${escapeHtml(candidate.email || 'Email not provided')}</span></span></div></td>
+            <td><div class="skill-list">${(candidate.skills || []).slice(0, 3).map((skill) => `<span class="skill-tag">${escapeHtml(skill)}</span>`).join('') || '<span class="detail-empty">Not extracted</span>'}</div></td>
+            <td><button class="text-button" type="button" data-delete-candidate="${escapeHtml(candidate.id)}">Remove</button></td>
+          </tr>`).join('') : `<tr><td class="empty-cell" colspan="3">${query ? 'No candidates match that search.' : 'No candidates yet. Upload a resume to add someone.'}</td></tr>`;
+      }
+
+      async function loadCandidates() {
+        candidates = await api('/candidates');
+        if (activeCandidateId && !candidates.some((candidate) => candidate.id === activeCandidateId)) {
+          activeCandidateId = '';
+          candidateDetail.innerHTML = '<div class="detail-placeholder"><span class="avatar" aria-hidden="true">TM</span><p>Select a candidate to review their profile.</p></div>';
+        }
+        renderCandidates();
+      }
+
+      async function loadCandidateDetail(candidateId) {
+        activeCandidateId = candidateId;
+        renderCandidates();
+        candidateDetail.innerHTML = '<p class="detail-empty">Loading profile...</p>';
+        try {
+          renderCandidateDetail(await api(`/candidates/${encodeURIComponent(candidateId)}`));
+        } catch (error) {
+          candidateDetail.innerHTML = `<p class="detail-empty">${escapeHtml(error.message)}</p>`;
+        }
+      }
+
+      async function refreshDashboard() {
+        const results = await Promise.allSettled([loadJobs(), loadStats(), loadCandidates()]);
+        const failed = results.find((result) => result.status === 'rejected');
+        if (failed) showToast(failed.reason.message || 'Could not load the workspace.');
+      }
+
+      $('#todayLabel').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
+      fetch('/health').then((response) => {
+        if (!response.ok) throw new Error();
+        $('#apiStatus').textContent = 'API connected';
+      }).catch(() => {
+        $('#apiStatus').textContent = 'API unavailable';
+        $('#apiStatusDot').style.background = 'var(--coral)';
+      });
+
+      $('#openJobBtn').addEventListener('click', () => jobDialog.showModal());
+      $('#openUploadBtn').addEventListener('click', () => uploadDialog.showModal());
+      $('#uploadFromDirectoryBtn').addEventListener('click', () => uploadDialog.showModal());
+      document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.closeDialog).close()));
+      document.querySelectorAll('input[name="matchSource"]').forEach((radio) => radio.addEventListener('change', () => {
+        $('#folderField').hidden = $('input[name="matchSource"]:checked').value !== 'folder';
+      }));
+
+      $('#jobForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const submit = form.querySelector('[type="submit"]');
+        setBusy(submit, true, 'Creating...');
+        try {
+          const data = Object.fromEntries(new FormData(form).entries());
+          await api('/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+          form.reset();
+          jobDialog.close();
+          await Promise.all([loadJobs(), loadStats()]);
+          showToast('Role created. Ready to find a match.');
+        } catch (error) {
+          showToast(error.message);
+        } finally {
+          setBusy(submit, false);
+        }
+      });
+
+      $('#uploadForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const submit = form.querySelector('[type="submit"]');
+        const status = $('#uploadStatus');
+        const file = $('#resumeFile').files[0];
+        if (!file) { status.textContent = 'Choose a resume file first.'; return; }
+        setBusy(submit, true, 'Uploading...');
+        status.textContent = 'Extracting resume details...';
+        try {
+          const formData = new FormData(form);
+          if (!formData.get('candidate_name')) formData.delete('candidate_name');
+          const result = await api('/candidates/upload', { method: 'POST', body: formData });
+          form.reset();
+          uploadDialog.close();
+          await Promise.all([loadCandidates(), loadStats()]);
+          showToast(`${result.name} added to your pipeline.`);
+        } catch (error) {
+          status.textContent = error.message;
+        } finally {
+          setBusy(submit, false);
+        }
+      });
+
+      $('#runMatchBtn').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const jobId = selectedJobId.value;
+        if (!jobId) { matchStatus.textContent = 'Create a role before running a match.'; matchStatus.classList.add('error'); return; }
+        matchStatus.classList.remove('error');
+        setBusy(button, true, 'Matching...');
+        matchStatus.textContent = 'Comparing candidate profiles with this role...';
+        try {
+          const source = $('input[name="matchSource"]:checked').value;
+          const path = source === 'folder' ? `/jobs/${encodeURIComponent(jobId)}/match` : `/jobs/${encodeURIComponent(jobId)}/match-database`;
+          const options = source === 'folder'
+            ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume_folder: $('#resumeFolder').value.trim() }) }
+            : { method: 'POST' };
+          const result = await api(path, options);
+          renderResults(result.matches, 'No candidates found for this role.');
+          matchStatus.textContent = `${result.matches.length} ${result.matches.length === 1 ? 'candidate matched' : 'candidates matched'}${result.summary?.duplicates ? `; ${result.summary.duplicates} duplicate${result.summary.duplicates === 1 ? '' : 's'} skipped` : ''}.`;
+          await Promise.all([loadStats(), loadCandidates()]);
+        } catch (error) {
+          matchStatus.textContent = error.message;
+          matchStatus.classList.add('error');
+        } finally {
+          setBusy(button, false);
+        }
+      });
+
+      selectedJobId.addEventListener('change', () => {
+        renderJobs();
+      });
+      jobsList.addEventListener('click', async (event) => {
+        const selectButton = event.target.closest('[data-select-job]');
+        const deleteButton = event.target.closest('[data-delete-job]');
+        if (selectButton) {
+          selectedJobId.value = selectButton.dataset.selectJob;
+          renderJobs();
+        }
+        if (deleteButton) {
+          const job = jobs.find((item) => item.id === deleteButton.dataset.deleteJob);
+          if (!job || !window.confirm(`Remove the role "${job.title}"?`)) return;
+          try {
+            await api(`/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' });
+            await Promise.all([loadJobs(), loadStats()]);
+            showToast('Role removed.');
+          } catch (error) { showToast(error.message); }
+        }
+      });
+
+      candidateRows.addEventListener('click', async (event) => {
+        const deleteButton = event.target.closest('[data-delete-candidate]');
+        if (deleteButton) {
+          event.stopPropagation();
+          const candidate = candidates.find((item) => item.id === deleteButton.dataset.deleteCandidate);
+          if (!candidate || !window.confirm(`Remove ${candidate.name} from the directory?`)) return;
+          try {
+            await api(`/candidates/${encodeURIComponent(candidate.id)}`, { method: 'DELETE' });
+            await Promise.all([loadCandidates(), loadStats()]);
+            showToast('Candidate removed.');
+          } catch (error) { showToast(error.message); }
+          return;
+        }
+        const row = event.target.closest('[data-candidate-row]');
+        if (row) await loadCandidateDetail(row.dataset.candidateRow);
+      });
+      $('#candidateSearch').addEventListener('input', renderCandidates);
+      document.querySelectorAll('.side-nav a').forEach((link) => link.addEventListener('click', () => {
+        document.querySelectorAll('.side-nav a').forEach((item) => item.classList.toggle('active', item === link));
+      }));
+
+      refreshDashboard();
+    </script>
+  </body>
+</html>

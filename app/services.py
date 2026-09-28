@@ -75,7 +75,7 @@ def _extract_keywords(text: str) -> set[str]:
 
 def compute_resume_fingerprint(resume_text: str) -> str:
     normalized = _normalize_text(resume_text)
-    return md5(normalized.encode("utf-8")).hexdigest()
+    return md5(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def deduplicate_candidates(candidates: List[CandidateProfile]) -> Tuple[List[CandidateProfile], List[CandidateProfile]]:

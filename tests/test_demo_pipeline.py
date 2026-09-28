@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from app.demo_pipeline import load_resume_candidates, run_demo_pipeline
 
 

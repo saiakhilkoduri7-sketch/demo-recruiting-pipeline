@@ -8,7 +8,7 @@ from app.demo_pipeline import run_demo_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the recruiting pipeline demo against a folder of resume files.")
+    parser = argparse.ArgumentParser(description="Run TalentMatch AI against a folder of resume files.")
     parser.add_argument("--resume-folder", required=True, help="Folder containing resume text files (.txt, .md, .csv).")
     parser.add_argument("--job-title", required=True, help="Job title used for matching.")
     parser.add_argument("--job-description", required=True, help="Job description used for matching.")

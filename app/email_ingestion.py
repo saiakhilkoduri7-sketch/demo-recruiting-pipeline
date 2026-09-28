@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import tempfile
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict
 
+from app.demo_pipeline import _extract_resume_text
 from app.services import CandidateProfile
 
 
@@ -22,12 +25,24 @@ def extract_resume_text(attachment: Dict[str, Any]) -> str:
     if not content_bytes:
         return ""
 
-    decoded = base64.b64decode(content_bytes.encode("utf-8")).decode("utf-8", errors="ignore")
+    decoded_bytes = base64.b64decode(content_bytes.encode("utf-8"))
 
     if content_type.lower().startswith("text/") or name.lower().endswith((".txt", ".md", ".csv")):
-        return decoded.strip()
+        return decoded_bytes.decode("utf-8", errors="ignore").strip()
 
-    return decoded.strip()
+    suffix = Path(name).suffix.lower()
+    if suffix in {".pdf", ".docx"}:
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                temp_file.write(decoded_bytes)
+                temp_path = Path(temp_file.name)
+            return _extract_resume_text(temp_path)
+        finally:
+            if temp_path and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+
+    return decoded_bytes.decode("utf-8", errors="ignore").strip()
 
 
 def process_email_message(message: Dict[str, Any]) -> CandidateProfile:
@@ -39,9 +54,8 @@ def process_email_message(message: Dict[str, Any]) -> CandidateProfile:
     body = message.get("body", {}).get("content", "")
 
     attachments = message.get("attachments", [])
-    resume_text = "\n".join(
-        extract_resume_text(item) for item in attachments if extract_resume_text(item)
-    )
+    extracted_resumes = [extract_resume_text(item) for item in attachments]
+    resume_text = "\n".join(text for text in extracted_resumes if text)
 
     if not resume_text:
         resume_text = body.strip()
