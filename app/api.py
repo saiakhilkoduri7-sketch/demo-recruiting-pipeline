@@ -77,6 +77,18 @@ class CandidateUploadResponse(BaseModel):
     extracted_chars: int
 
 
+class HealthCheckTrustedHostMiddleware:
+    def __init__(self, app, allowed_hosts: list[str]) -> None:
+        self.app = app
+        self.trusted_host_middleware = TrustedHostMiddleware(app, allowed_hosts=allowed_hosts)
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and scope["path"] == "/health":
+            await self.app(scope, receive, send)
+            return
+        await self.trusted_host_middleware(scope, receive, send)
+
+
 app = FastAPI(
     title="TalentMatch AI",
     description="Demo API for resume ingestion, deduplication, and matching.",
@@ -91,7 +103,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(
-    TrustedHostMiddleware,
+    HealthCheckTrustedHostMiddleware,
     allowed_hosts=settings.trusted_hosts if settings.is_production else ["*"],
 )
 @app.middleware("http")

@@ -65,6 +65,8 @@ def test_production_ui_uses_secure_login_session(monkeypatch):
     assert client.get("/jobs").status_code == 200
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/jobs").headers["cache-control"] == "no-store"
+    assert client.get("/health", headers={"Host": "render-internal-host"}).status_code == 200
+    assert client.get("/auth/session", headers={"Host": "untrusted.example"}).status_code == 400
 
     folder_import = client.post(
         "/jobs/job-1/match",
