@@ -19,9 +19,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
-        value: https://talentmatch-ai.onrender.com
+        value: https://talentmatch-ai-hy1n.onrender.com
       - key: TRUSTED_HOSTS
-        value: talentmatch-ai.onrender.com
+        value: talentmatch-ai-hy1n.onrender.com
       - key: OUTLOOK_SHARED_MAILBOX
         value: ""
       - key: GRAPH_ACCESS_TOKEN
