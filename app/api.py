@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import tempfile
 import uuid
+from functools import lru_cache
+from hmac import compare_digest
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.database import CandidateRepository
@@ -18,18 +20,21 @@ from app.demo_pipeline import _extract_resume_text, load_resume_candidates, run_
 from app.graph_mailbox import GraphMailboxClient, ingest_mailbox_candidates
 from app.services import CandidateProfile, JobRequirement, RankedMatch, deduplicate_candidates, rank_candidates
 
-load_dotenv()
-
 
 class DemoRequest(BaseModel):
-    resume_folder: str
-    job_title: str
-    job_description: str
+    resume_folder: str = Field(min_length=1, max_length=500)
+    job_title: str = Field(min_length=1, max_length=140)
+    job_description: str = Field(min_length=1, max_length=10000)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class JobCreateRequest(BaseModel):
-    title: str
-    description: str
+    title: str = Field(min_length=1, max_length=140)
+    description: str = Field(min_length=1, max_length=10000)
 
 
 class JobRecord(BaseModel):
@@ -87,21 +92,49 @@ app.add_middleware(
 )
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=settings.trusted_hosts if settings.is_production else ["*"] ,
+    allowed_hosts=settings.trusted_hosts if settings.is_production else ["*"],
 )
-
-
 @app.middleware("http")
-async def require_api_key(request: Request, call_next):
-    if settings.is_production and settings.api_key:
-        if request.headers.get("x-api-key") != settings.api_key:
-            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
-    return await call_next(request)
+async def enforce_browser_auth(request: Request, call_next):
+    public_paths = {"/", "/ui", "/health", "/auth/session", "/auth/login"}
+    is_public_static_file = request.url.path.startswith("/static/")
+    if settings.is_production and request.method != "OPTIONS":
+        if request.method not in {"GET", "HEAD"}:
+            origin = request.headers.get("origin")
+            if not origin or origin not in settings.allowed_origins:
+                return JSONResponse(status_code=403, content={"detail": "Invalid request origin"})
+
+        if (
+            request.url.path not in public_paths
+            and not is_public_static_file
+            and not request.session.get("authenticated")
+        ):
+            return JSONResponse(status_code=401, content={"detail": "Authentication required"})
+
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.url.path.startswith(("/auth/", "/candidates", "/jobs", "/dashboard")):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    session_cookie="talentmatch_session",
+    max_age=8 * 60 * 60,
+    same_site="strict",
+    https_only=settings.is_production,
+)
 
 
 app.mount("/static", StaticFiles(directory=str(settings.frontend_dir)), name="static")
 
 
+@lru_cache(maxsize=1)
 def get_repository() -> CandidateRepository:
     database_url = settings.database_url
     if database_url:
@@ -109,8 +142,39 @@ def get_repository() -> CandidateRepository:
     return CandidateRepository(db_path=settings.sqlite_path)
 
 
+@app.get("/auth/session")
+def auth_session(request: Request) -> dict[str, bool]:
+    return {
+        "authenticated": not settings.is_production or bool(request.session.get("authenticated")),
+        "folder_import_enabled": not settings.is_production,
+    }
+
+
+@app.post("/auth/login")
+def login(request: Request, credentials: LoginRequest) -> dict[str, bool]:
+    if not settings.is_production:
+        request.session["authenticated"] = True
+        return {"authenticated": True}
+
+    if not (
+        compare_digest(credentials.username, settings.admin_username)
+        and compare_digest(credentials.password, settings.admin_password)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    request.session.clear()
+    request.session["authenticated"] = True
+    return {"authenticated": True}
+
+
+@app.post("/auth/logout")
+def logout(request: Request) -> dict[str, bool]:
+    request.session.clear()
+    return {"authenticated": False}
+
+
 @app.get("/")
-async def root() -> dict[str, str]:
+def root() -> dict[str, str]:
     return {
         "message": "TalentMatch AI API is running",
         "ui": "/ui",
@@ -119,17 +183,21 @@ async def root() -> dict[str, str]:
 
 
 @app.get("/ui")
-async def ui() -> FileResponse:
+def ui() -> FileResponse:
     return FileResponse("frontend/index.html")
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+def health() -> dict[str, str]:
+    try:
+        get_repository().check_connection()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database is unavailable") from exc
     return {"status": "ok"}
 
 
 @app.post("/mailbox/ingest")
-async def ingest_mailbox(request: MailboxIngestRequest) -> dict[str, int]:
+def ingest_mailbox(request: MailboxIngestRequest) -> dict[str, int]:
     mailbox_address = request.mailbox_address or settings.outlook_shared_mailbox
     access_token = request.access_token or settings.graph_access_token
     if not mailbox_address.strip() or not access_token.strip():
@@ -148,7 +216,7 @@ async def ingest_mailbox(request: MailboxIngestRequest) -> dict[str, int]:
 
 
 @app.get("/dashboard/stats")
-async def dashboard_stats() -> dict:
+def dashboard_stats() -> dict:
     repository = get_repository()
     jobs = repository.list_jobs()
     candidates = repository.list_candidates()
@@ -184,7 +252,7 @@ async def dashboard_stats() -> dict:
 
 
 @app.get("/candidates")
-async def list_candidates() -> list[dict]:
+def list_candidates() -> list[dict]:
     repository = get_repository()
     return [
         {
@@ -198,7 +266,7 @@ async def list_candidates() -> list[dict]:
 
 
 @app.get("/candidates/search")
-async def search_candidates(name: str = "") -> list[dict]:
+def search_candidates(name: str = "") -> list[dict]:
     repository = get_repository()
     query = name.strip().lower()
     candidates = repository.list_candidates()
@@ -229,7 +297,7 @@ async def search_candidates(name: str = "") -> list[dict]:
 
 
 @app.get("/candidates/{candidate_id}")
-async def get_candidate_detail(candidate_id: str) -> CandidateDetailResponse:
+def get_candidate_detail(candidate_id: str) -> CandidateDetailResponse:
     repository = get_repository()
     for candidate in repository.list_candidates():
         if candidate.id == candidate_id:
@@ -246,24 +314,29 @@ async def get_candidate_detail(candidate_id: str) -> CandidateDetailResponse:
 
 
 @app.delete("/candidates/{candidate_id}")
-async def delete_candidate(candidate_id: str) -> dict:
+def delete_candidate(candidate_id: str) -> dict:
     repository = get_repository()
     repository.delete_candidate(candidate_id)
     return {"status": "deleted", "candidate_id": candidate_id}
 
 
 @app.post("/candidates/upload")
-async def upload_candidate(
+def upload_candidate(
     file: UploadFile = File(...),
-    candidate_name: str | None = None,
+    candidate_name: str | None = Query(default=None, max_length=140),
 ) -> CandidateUploadResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="A resume file is required.")
 
     suffix = Path(file.filename).suffix.lower()
-    contents = await file.read()
+    if suffix not in {".txt", ".md", ".csv", ".pdf", ".docx"}:
+        raise HTTPException(status_code=415, detail="Upload a TXT, MD, CSV, PDF, or DOCX resume.")
+
+    contents = file.file.read(settings.max_resume_size_bytes + 1)
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(contents) > settings.max_resume_size_bytes:
+        raise HTTPException(status_code=413, detail="Resume files must be 10 MB or smaller.")
 
     temp_path: Path | None = None
     try:
@@ -303,14 +376,14 @@ async def upload_candidate(
 
 
 @app.get("/jobs")
-async def list_jobs() -> list[JobRecord]:
+def list_jobs() -> list[JobRecord]:
     repository = get_repository()
     jobs = repository.list_jobs()
     return [JobRecord(id=job.id, title=job.title, description=job.description) for job in jobs]
 
 
 @app.post("/jobs")
-async def create_job(request: JobCreateRequest) -> JobRecord:
+def create_job(request: JobCreateRequest) -> JobRecord:
     if not request.title.strip() or not request.description.strip():
         raise HTTPException(status_code=400, detail="Job title and description are required.")
 
@@ -325,14 +398,14 @@ async def create_job(request: JobCreateRequest) -> JobRecord:
 
 
 @app.delete("/jobs/{job_id}")
-async def delete_job(job_id: str) -> dict:
+def delete_job(job_id: str) -> dict:
     repository = get_repository()
     repository.delete_job(job_id)
     return {"status": "deleted", "job_id": job_id}
 
 
 @app.get("/jobs/{job_id}/results")
-async def get_job_results(job_id: str) -> list[RankedMatchResponse]:
+def get_job_results(job_id: str) -> list[RankedMatchResponse]:
     repository = get_repository()
     stored = repository.list_ranked_matches(job_id)
     if not stored:
@@ -354,14 +427,19 @@ async def get_job_results(job_id: str) -> list[RankedMatchResponse]:
 
 
 @app.post("/jobs/{job_id}/match")
-async def run_match_for_job(job_id: str, request: MatchRequest) -> dict:
+def run_match_for_job(job_id: str, request: MatchRequest) -> dict:
     repository = get_repository()
     job = next((job for job in repository.list_jobs() if job.id == job_id), None)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
     if not request.resume_folder:
-        return await run_database_match_for_job(job_id)
+        return run_database_match_for_job(job_id)
+    if settings.is_production:
+        raise HTTPException(
+            status_code=400,
+            detail="Server-folder imports are disabled in production. Upload resumes instead.",
+        )
 
     resume_folder = Path(request.resume_folder)
     if not resume_folder.exists() or not resume_folder.is_dir():
@@ -395,7 +473,7 @@ async def run_match_for_job(job_id: str, request: MatchRequest) -> dict:
 
 
 @app.post("/jobs/{job_id}/match-database")
-async def run_database_match_for_job(job_id: str) -> dict:
+def run_database_match_for_job(job_id: str) -> dict:
     repository = get_repository()
     job = next((job for job in repository.list_jobs() if job.id == job_id), None)
     if job is None:
@@ -429,7 +507,10 @@ async def run_database_match_for_job(job_id: str) -> dict:
 
 
 @app.post("/run-demo")
-async def run_demo(request: DemoRequest) -> dict:
+def run_demo(request: DemoRequest) -> dict:
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Demo endpoint is unavailable in production.")
+
     resume_folder = Path(request.resume_folder)
 
     if not resume_folder.exists() or not resume_folder.is_dir():

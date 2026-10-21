@@ -28,7 +28,17 @@ class CandidateRepository:
     def _connect_postgres(self):
         if psycopg2 is None:
             raise RuntimeError("psycopg2 is required when DATABASE_URL is configured.")
-        return psycopg2.connect(self.db_url)
+        return psycopg2.connect(self.db_url, connect_timeout=10)
+
+    def check_connection(self) -> None:
+        if self._uses_postgres():
+            with self._connect_postgres() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+            return
+
+        with self._connect_sqlite() as conn:
+            conn.execute("SELECT 1")
 
     def _initialize(self) -> None:
         if self._uses_postgres():

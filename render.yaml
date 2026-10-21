@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: talentmatch-ai
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ADMIN_USERNAME
+        value: recruiter
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://talentmatch-ai.onrender.com
+      - key: TRUSTED_HOSTS
+        value: talentmatch-ai.onrender.com
+      - key: OUTLOOK_SHARED_MAILBOX
+        value: ""
+      - key: GRAPH_ACCESS_TOKEN
+        value: ""

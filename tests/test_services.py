@@ -44,6 +44,30 @@ def test_deduplicate_candidates_uses_contact_and_resume_fingerprint():
     assert duplicates[0].id == "c2"
 
 
+def test_deduplicate_candidates_normalizes_phone_formatting():
+    candidates = [
+        CandidateProfile(id="c1", name="Alice", phone="(555) 123-4567"),
+        CandidateProfile(id="c2", name="Alice Duplicate", phone="5551234567"),
+    ]
+
+    unique_candidates, duplicates = deduplicate_candidates(candidates)
+
+    assert [candidate.id for candidate in unique_candidates] == ["c1"]
+    assert [candidate.id for candidate in duplicates] == ["c2"]
+
+
+def test_deduplicate_candidates_does_not_match_empty_resumes():
+    candidates = [
+        CandidateProfile(id="c1", name="Alice", resume_text=""),
+        CandidateProfile(id="c2", name="Bob", resume_text="  \n "),
+    ]
+
+    unique_candidates, duplicates = deduplicate_candidates(candidates)
+
+    assert [candidate.id for candidate in unique_candidates] == ["c1", "c2"]
+    assert duplicates == []
+
+
 def test_rank_candidates_returns_ordered_matches():
     job = JobRequirement(
         id="job-1",

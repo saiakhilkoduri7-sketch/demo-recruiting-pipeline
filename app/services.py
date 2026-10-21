@@ -34,6 +34,10 @@ def _normalize_text(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
 
+def _normalize_phone(value: str) -> str:
+    return "".join(character for character in value if character.isdigit())
+
+
 def _extract_keywords(text: str) -> set[str]:
     stop_words = {
         "the",
@@ -88,8 +92,9 @@ def deduplicate_candidates(candidates: List[CandidateProfile]) -> Tuple[List[Can
 
     for candidate in candidates:
         email_key = _normalize_text(candidate.email)
-        phone_key = _normalize_text(candidate.phone)
-        fingerprint = compute_resume_fingerprint(candidate.resume_text)
+        phone_key = _normalize_phone(candidate.phone)
+        normalized_resume = _normalize_text(candidate.resume_text)
+        fingerprint = compute_resume_fingerprint(normalized_resume) if normalized_resume else ""
 
         duplicate_match = (
             email_key and email_key in seen_emails

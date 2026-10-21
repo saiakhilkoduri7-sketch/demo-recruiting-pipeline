@@ -67,6 +67,31 @@ To enable the optional Render deployment workflow, add a repository secret named
 `RENDER_DEPLOY_HOOK` containing the deploy hook URL from the Render service. Deployments can
 then be triggered automatically from `main` or manually from the Actions tab.
 
+The Render blueprint provisions a free web service, generates a session-signing secret, and
+prompts for an admin password and `DATABASE_URL`. Set a unique password with at least 16
+characters. For the database, create a project on [Supabase](https://supabase.com/) and open
+its **Connect** dialog. Select **Session pooler** and copy its connection string; this works
+from Render's IPv4-only free web service and supports this app's persistent PostgreSQL driver.
+Replace `[YOUR-PASSWORD]` with your database password, percent-encoding reserved characters.
+Ensure the connection string includes `sslmode=require` (append it as a query parameter if
+needed), then add it to Render as `DATABASE_URL`. Never commit or share these credentials.
+Render prompts for `ADMIN_PASSWORD` and `DATABASE_URL` during initial Blueprint creation; for
+an existing service, set them in **Render Dashboard → service → Environment**.
+
+The recruiter dashboard uses an HTTP-only, secure, same-site session cookie. Sign in with
+`ADMIN_USERNAME` and `ADMIN_PASSWORD`; the session expires after eight hours. Database routes,
+resume uploads, and matching operations require authentication. Production requires TLS on the
+database connection, explicit CORS origins and trusted hosts, and the app health check verifies
+database connectivity. Server-folder imports are disabled in production; upload candidate files
+through the UI instead.
+
+Review [Supabase's current plan limits](https://supabase.com/pricing) and database backup
+options before use. Render's free web service can spin down, and its local filesystem is
+ephemeral. Free-tier hosting has no production availability guarantee; arrange backups, access
+controls, a retention policy, and a privacy/legal review before storing real candidate data.
+Matching scores are assistive signals only and must not be used as the sole basis for hiring
+decisions. Outlook mailbox variables are only needed when mailbox ingestion is enabled.
+
 ## Production notes
 
 - Use environment variables for config and secrets

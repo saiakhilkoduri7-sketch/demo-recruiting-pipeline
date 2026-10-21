@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#183b34" />
     <title>TalentMatch | Recruiting workspace</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
       :root {
         color-scheme: light;
@@ -26,12 +23,13 @@
       }
 
       * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
       html { scroll-behavior: smooth; }
       body {
         margin: 0;
         background: var(--canvas);
         color: var(--ink);
-        font-family: "DM Sans", sans-serif;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 14px;
       }
       button, input, textarea, select { font: inherit; }
@@ -61,10 +59,9 @@
         border-radius: 10px;
         background: var(--lime);
         color: var(--forest);
-        font-family: Manrope, sans-serif;
         font-weight: 800;
       }
-      .brand-name { font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; }
+      .brand-name { font-size: 15px; font-weight: 800; }
       .brand-caption { margin-top: 2px; color: #a8c0b5; font-size: 11px; }
       .nav-label { margin: 43px 12px 12px; color: #91aca0; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
       .side-nav { display: grid; gap: 5px; }
@@ -90,7 +87,7 @@
       .page-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
       .eyebrow { margin: 0 0 8px; color: var(--forest-2); font-size: 11px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
       h1, h2, h3, p { margin-top: 0; }
-      h1, h2, h3 { font-family: Manrope, sans-serif; }
+      h1, h2, h3 { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
       h1 { margin-bottom: 6px; font-size: clamp(25px, 3vw, 34px); line-height: 1.15; }
       .page-subtitle { margin: 0; color: var(--muted); font-size: 14px; }
       .top-actions { display: flex; align-items: center; gap: 10px; }
@@ -123,7 +120,7 @@
       .stat-card::after { position: absolute; right: -18px; bottom: -33px; width: 84px; height: 84px; border-radius: 50%; background: var(--stat-accent, var(--mint)); content: ""; opacity: .75; }
       .stat-top { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; font-weight: 600; }
       .stat-mark { position: relative; z-index: 1; display: grid; width: 27px; height: 27px; place-items: center; border-radius: 4px; background: var(--stat-accent, var(--mint)); color: var(--forest); font-weight: 800; }
-      .stat-value { position: relative; z-index: 1; margin-top: 11px; font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; line-height: 1; }
+      .stat-value { position: relative; z-index: 1; margin-top: 11px; font-size: 27px; font-weight: 800; line-height: 1; }
 
       .section { margin-top: 31px; scroll-margin-top: 20px; }
       .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-bottom: 14px; }
@@ -222,6 +219,13 @@
       .file-input { padding: 9px !important; background: #fafbf9 !important; }
       .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
       .loading { opacity: .55; pointer-events: none; }
+      .auth-screen { display: grid; min-height: 100vh; place-items: center; padding: 22px; background: var(--canvas); }
+      .auth-card { width: min(420px, 100%); padding: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); box-shadow: var(--shadow); }
+      .auth-card h1 { margin: 0 0 8px; font-size: 24px; }
+      .auth-card p { margin: 0 0 22px; color: var(--muted); line-height: 1.5; }
+      .auth-card .field { margin-bottom: 14px; }
+      .auth-error { min-height: 20px; margin: 10px 0 0 !important; color: #a84e41 !important; font-size: 12px; }
+      .auth-submit { width: 100%; margin-top: 6px; }
 
       @media (max-width: 1050px) {
         .sidebar { width: 205px; }
@@ -268,7 +272,20 @@
     </style>
   </head>
   <body>
-    <div class="app-shell">
+    <main class="auth-screen" id="authScreen" hidden>
+      <section class="auth-card" aria-labelledby="loginTitle">
+        <p class="eyebrow">TalentMatch / Secure workspace</p>
+        <h1 id="loginTitle">Sign in</h1>
+        <p>Use the recruiter account configured for this deployment.</p>
+        <form id="loginForm">
+          <div class="field"><label for="loginUsername">Username</label><input id="loginUsername" name="username" autocomplete="username" required maxlength="120" /></div>
+          <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required maxlength="256" /></div>
+          <button class="button auth-submit" type="submit">Sign in</button>
+          <p class="auth-error" id="loginError" role="alert" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+    <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">T</div>
@@ -296,6 +313,7 @@
             </div>
             <div class="top-actions">
               <span class="date-chip" id="todayLabel"></span>
+              <button class="button button-quiet" id="logoutBtn" type="button">Sign out</button>
               <button class="button button-primary" id="openUploadBtn" type="button"><span aria-hidden="true">+</span> Add candidate</button>
             </div>
           </header>
@@ -326,7 +344,7 @@
             <div class="workspace-grid">
               <section class="panel match-panel">
                 <div class="panel-title">
-                  <div><div class="mini-label">Candidate matching</div><h3>Find the right fit</h3><p>Choose a role and candidate source to get started.</p></div>
+                  <div><div class="mini-label">Candidate matching</div><h3>Review relevant experience</h3><p>Compare saved resumes with a role. Scores show keyword overlap only; they are not a validated assessment and should never decide hiring on their own.</p></div>
                 </div>
                 <div class="match-fields">
                   <div class="field">
@@ -431,15 +449,49 @@
       let activeCandidateId = '';
       let toastTimer;
 
+      function setSignedIn(signedIn) {
+        $('#authScreen').hidden = signedIn;
+        $('#appShell').hidden = !signedIn;
+      }
+
       function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
       }
 
       async function api(path, options = {}) {
-        const response = await fetch(path, options);
+        const headers = new Headers(options.headers || {});
+        const response = await fetch(path, { ...options, headers, credentials: 'same-origin' });
         const body = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          setSignedIn(false);
+          $('#loginError').textContent = 'Your session expired. Please sign in again.';
+          throw new Error('Your session expired. Please sign in again.');
+        }
         if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
         return body;
+      }
+
+      async function initializeWorkspace() {
+        try {
+          const [healthResponse, sessionResponse] = await Promise.all([
+            fetch('/health', { credentials: 'same-origin' }),
+            fetch('/auth/session', { credentials: 'same-origin' })
+          ]);
+          if (!healthResponse.ok) throw new Error('Database or API is unavailable.');
+          if (!sessionResponse.ok) throw new Error('Could not check your sign-in session.');
+          const session = await sessionResponse.json();
+          $('#apiStatus').textContent = 'API and database connected';
+          if (!session.folder_import_enabled) {
+            document.querySelector('input[name="matchSource"][value="folder"]').closest('label').hidden = true;
+          }
+          setSignedIn(session.authenticated);
+          if (session.authenticated) await refreshDashboard();
+        } catch (error) {
+          $('#apiStatus').textContent = 'API unavailable';
+          $('#apiStatusDot').style.background = 'var(--coral)';
+          setSignedIn(false);
+          $('#loginError').textContent = error.message;
+        }
       }
 
       function showToast(text) {
@@ -568,12 +620,38 @@
       }
 
       $('#todayLabel').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
-      fetch('/health').then((response) => {
-        if (!response.ok) throw new Error();
-        $('#apiStatus').textContent = 'API connected';
-      }).catch(() => {
-        $('#apiStatus').textContent = 'API unavailable';
-        $('#apiStatusDot').style.background = 'var(--coral)';
+      $('#loginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const submit = form.querySelector('[type="submit"]');
+        $('#loginError').textContent = '';
+        setBusy(submit, true, 'Signing in...');
+        try {
+          const response = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.detail || `Sign-in failed (${response.status})`);
+          form.reset();
+          setSignedIn(true);
+          await refreshDashboard();
+        } catch (error) {
+          $('#loginError').textContent = error.message;
+        } finally {
+          setBusy(submit, false);
+        }
+      });
+      $('#logoutBtn').addEventListener('click', async () => {
+        try {
+          await api('/auth/logout', { method: 'POST' });
+        } finally {
+          setSignedIn(false);
+          $('#loginError').textContent = '';
+          $('#loginUsername').focus();
+        }
       });
 
       $('#openJobBtn').addEventListener('click', () => jobDialog.showModal());
@@ -694,7 +772,7 @@
         document.querySelectorAll('.side-nav a').forEach((item) => item.classList.toggle('active', item === link));
       }));
 
-      refreshDashboard();
+      initializeWorkspace();
     </script>
   </body>
 </html>
