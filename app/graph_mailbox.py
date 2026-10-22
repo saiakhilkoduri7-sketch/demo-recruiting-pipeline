@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 from typing import Any, Callable, Dict, List
 
@@ -29,12 +29,19 @@ class GraphMailboxClient:
             return json.loads(response.read().decode("utf-8"))
 
     def fetch_enriched_messages(self, mailbox_address: str, top: int = 10) -> List[Dict[str, Any]]:
+        mailbox_path = f"/users/{quote(mailbox_address, safe='@')}"
+        return self._fetch_enriched_messages(mailbox_path, top)
+
+    def fetch_current_user_messages(self, top: int = 10) -> List[Dict[str, Any]]:
+        return self._fetch_enriched_messages("/me", top)
+
+    def _fetch_enriched_messages(self, mailbox_path: str, top: int) -> List[Dict[str, Any]]:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
 
-        messages_path = f"/users/{mailbox_address}/messages?$top={top}&$filter=isRead eq false"
+        messages_path = f"{mailbox_path}/messages?$top={top}&$filter=isRead eq false"
         messages_response = self.http_get_fn(messages_path, headers)
         messages = messages_response.get("value", [])
 
@@ -44,10 +51,10 @@ class GraphMailboxClient:
             if not message_id:
                 continue
 
-            message_path = f"/users/{mailbox_address}/messages/{message_id}"
+            message_path = f"{mailbox_path}/messages/{quote(message_id, safe='')}"
             enriched_message = self.http_get_fn(message_path, headers)
 
-            attachments_path = f"/users/{mailbox_address}/messages/{message_id}/attachments"
+            attachments_path = f"{message_path}/attachments"
             attachments_response = self.http_get_fn(attachments_path, headers)
             enriched_message["attachments"] = attachments_response.get("value", [])
             enriched_messages.append(enriched_message)
@@ -62,10 +69,16 @@ def extract_candidates_from_messages(messages: List[Dict[str, Any]]) -> List[Can
 def ingest_mailbox_candidates(
     client: GraphMailboxClient,
     repository: CandidateRepository,
-    mailbox_address: str,
+    mailbox_address: str | None = None,
     top: int = 10,
+    use_current_user: bool = False,
 ) -> Dict[str, int]:
-    messages = client.fetch_enriched_messages(mailbox_address, top=top)
+    if use_current_user:
+        messages = client.fetch_current_user_messages(top=top)
+    elif mailbox_address:
+        messages = client.fetch_enriched_messages(mailbox_address, top=top)
+    else:
+        raise ValueError("A mailbox address is required for mailbox ingestion.")
     candidates = extract_candidates_from_messages(messages)
     stored = 0
     skipped = 0

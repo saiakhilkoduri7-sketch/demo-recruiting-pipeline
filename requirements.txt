@@ -12,3 +12,4 @@ python-multipart>=0.0.9
 psycopg2-binary>=2.9.0
 python-dotenv>=1.0.0
 itsdangerous>=2.2.0
+msal>=1.31.0

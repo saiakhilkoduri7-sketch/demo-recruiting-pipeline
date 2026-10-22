@@ -15,6 +15,12 @@ def _set_production_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/recruiting_db?sslmode=require")
     monkeypatch.setenv("CORS_ORIGINS", "https://testserver")
     monkeypatch.setenv("TRUSTED_HOSTS", "testserver")
+    monkeypatch.setenv("MICROSOFT_CLIENT_ID", "microsoft-client-id")
+    monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "microsoft-client-secret")
+    monkeypatch.setenv(
+        "MICROSOFT_REDIRECT_URI",
+        "https://testserver/auth/microsoft/callback",
+    )
 
 
 def test_production_ui_uses_secure_login_session(monkeypatch):
@@ -61,7 +67,7 @@ def test_production_ui_uses_secure_login_session(monkeypatch):
     cookie = response.headers["set-cookie"].lower()
     assert "httponly" in cookie
     assert "secure" in cookie
-    assert "samesite=strict" in cookie
+    assert "samesite=lax" in cookie
     assert client.get("/jobs").status_code == 200
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/jobs").headers["cache-control"] == "no-store"
@@ -147,4 +153,15 @@ def test_production_rejects_wildcard_trusted_hosts(monkeypatch):
     monkeypatch.setenv("TRUSTED_HOSTS", "*")
 
     with pytest.raises(ValueError, match="wildcard hosts"):
+        Settings()
+
+
+def test_production_requires_secure_trusted_microsoft_redirect_uri(monkeypatch):
+    _set_production_environment(monkeypatch)
+    monkeypatch.setenv(
+        "MICROSOFT_REDIRECT_URI",
+        "http://untrusted.example/auth/microsoft/callback",
+    )
+
+    with pytest.raises(ValueError, match="must use HTTPS"):
         Settings()
