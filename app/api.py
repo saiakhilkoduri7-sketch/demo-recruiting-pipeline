@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
@@ -18,7 +18,6 @@ from app.config import settings
 from app.database import CandidateRepository
 from app.demo_pipeline import _extract_resume_text, load_resume_candidates, run_demo_pipeline
 from app.graph_mailbox import GraphMailboxClient, ingest_mailbox_candidates
-from app import microsoft_oauth
 from app.services import CandidateProfile, JobRequirement, RankedMatch, deduplicate_candidates, rank_candidates
 
 
@@ -52,10 +51,6 @@ class MailboxIngestRequest(BaseModel):
     mailbox_address: str | None = None
     access_token: str | None = None
     top: int = 10
-
-
-class MicrosoftMailboxImportRequest(BaseModel):
-    top: int = Field(default=10, ge=1, le=100)
 
 
 class RankedMatchResponse(BaseModel):
@@ -113,14 +108,7 @@ app.add_middleware(
 )
 @app.middleware("http")
 async def enforce_browser_auth(request: Request, call_next):
-    public_paths = {
-        "/",
-        "/ui",
-        "/health",
-        "/auth/session",
-        "/auth/login",
-        "/auth/microsoft/callback",
-    }
+    public_paths = {"/", "/ui", "/health", "/auth/session", "/auth/login"}
     is_public_static_file = request.url.path.startswith("/static/")
     if settings.is_production and request.method != "OPTIONS":
         if request.method not in {"GET", "HEAD"}:
@@ -150,7 +138,7 @@ app.add_middleware(
     secret_key=settings.session_secret,
     session_cookie="talentmatch_session",
     max_age=8 * 60 * 60,
-    same_site="lax",
+    same_site="strict",
     https_only=settings.is_production,
 )
 
@@ -193,107 +181,8 @@ def login(request: Request, credentials: LoginRequest) -> dict[str, bool]:
 
 @app.post("/auth/logout")
 def logout(request: Request) -> dict[str, bool]:
-    microsoft_account = request.session.get("microsoft_account")
-    if microsoft_account and settings.microsoft_client_id and settings.microsoft_client_secret:
-        microsoft_oauth.disconnect_account(settings, microsoft_account)
     request.session.clear()
     return {"authenticated": False}
-
-
-@app.get("/auth/microsoft/status")
-def microsoft_status(request: Request) -> dict[str, str | bool | None]:
-    configured = bool(settings.microsoft_client_id and settings.microsoft_client_secret)
-    account = None
-    if configured:
-        account = microsoft_oauth.get_connected_account(
-            settings,
-            request.session.get("microsoft_account"),
-        )
-    return {"configured": configured, "connected": account is not None, "account": account}
-
-
-@app.get("/auth/microsoft/connect")
-def microsoft_connect(request: Request) -> RedirectResponse:
-    if settings.is_production and not settings.microsoft_redirect_uri:
-        raise HTTPException(status_code=503, detail="Microsoft sign-in redirect URL is not configured.")
-    redirect_uri = settings.microsoft_redirect_uri or str(
-        request.url_for("microsoft_callback")
-    )
-    try:
-        flow = microsoft_oauth.create_auth_flow(settings, redirect_uri)
-    except microsoft_oauth.MicrosoftOAuthError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    request.session["microsoft_oauth_state"] = flow["state"]
-    return RedirectResponse(flow["auth_uri"], status_code=302)
-
-
-@app.get("/auth/microsoft/callback", name="microsoft_callback")
-def microsoft_callback(request: Request) -> RedirectResponse:
-    expected_state = request.session.pop("microsoft_oauth_state", "")
-    received_state = request.query_params.get("state", "")
-    if not request.session.get("authenticated") and settings.is_production:
-        microsoft_oauth.discard_auth_flow(expected_state)
-        return RedirectResponse("/ui?mail=signin", status_code=303)
-    if not expected_state or not received_state or not compare_digest(
-        expected_state, received_state
-    ):
-        microsoft_oauth.discard_auth_flow(expected_state)
-        return RedirectResponse("/ui?mail=error", status_code=303)
-    if request.query_params.get("error"):
-        microsoft_oauth.discard_auth_flow(received_state)
-        return RedirectResponse("/ui?mail=error", status_code=303)
-
-    try:
-        account = microsoft_oauth.complete_auth_flow(
-            settings,
-            received_state,
-            dict(request.query_params),
-        )
-    except microsoft_oauth.MicrosoftOAuthError:
-        return RedirectResponse("/ui?mail=error", status_code=303)
-
-    previous_account = request.session.get("microsoft_account")
-    if (
-        previous_account
-        and previous_account.casefold() != account.casefold()
-        and settings.microsoft_client_id
-        and settings.microsoft_client_secret
-    ):
-        microsoft_oauth.disconnect_account(settings, previous_account)
-    request.session["microsoft_account"] = account
-    return RedirectResponse("/ui?mail=connected", status_code=303)
-
-
-@app.post("/auth/microsoft/import")
-def microsoft_import(
-    request: Request,
-    import_request: MicrosoftMailboxImportRequest,
-) -> dict[str, int]:
-    if not settings.microsoft_client_id or not settings.microsoft_client_secret:
-        raise HTTPException(status_code=503, detail="Microsoft sign-in is not configured.")
-    try:
-        access_token = microsoft_oauth.acquire_access_token(
-            settings,
-            request.session.get("microsoft_account"),
-        )
-    except microsoft_oauth.MicrosoftAccountNotConnected as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    client = GraphMailboxClient(access_token=access_token)
-    return ingest_mailbox_candidates(
-        client=client,
-        repository=get_repository(),
-        top=import_request.top,
-        use_current_user=True,
-    )
-
-
-@app.post("/auth/microsoft/disconnect")
-def microsoft_disconnect(request: Request) -> dict[str, bool]:
-    username = request.session.pop("microsoft_account", None)
-    if settings.microsoft_client_id and settings.microsoft_client_secret:
-        microsoft_oauth.disconnect_account(settings, username)
-    return {"connected": False}
 
 
 @app.get("/")

@@ -26,9 +26,3 @@ services:
         value: ""
       - key: GRAPH_ACCESS_TOKEN
         value: ""
-      - key: MICROSOFT_CLIENT_ID
-        sync: false
-      - key: MICROSOFT_CLIENT_SECRET
-        sync: false
-      - key: MICROSOFT_REDIRECT_URI
-        value: https://talentmatch-ai-hy1n.onrender.com/auth/microsoft/callback

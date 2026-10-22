@@ -129,10 +129,6 @@
       .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, .85fr); gap: 14px; }
       .panel { border: 1px solid var(--line); border-radius: 5px; background: var(--paper); box-shadow: var(--shadow); }
       .match-panel { padding: 21px; }
-      .mailbox-panel { padding: 19px 21px; }
-      .mailbox-control { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-      .mailbox-status { color: var(--muted); font-size: 12px; }
-      .mailbox-actions { display: flex; flex-wrap: wrap; gap: 8px; }
       .panel-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
       .panel-title h3 { margin: 0 0 4px; font-size: 15px; }
       .panel-title p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -339,23 +335,6 @@
               <div class="stat-top"><span>Strong matches</span><span class="stat-mark" aria-hidden="true">+</span></div>
               <div class="stat-value" id="qualifiedCount">0</div>
             </article>
-          </section>
-
-          <section class="section" aria-labelledby="mailboxTitle">
-            <div class="panel mailbox-panel">
-              <div class="panel-title">
-                <div><div class="mini-label">Resume intake</div><h3 id="mailboxTitle">Personal Outlook inbox</h3><p>Connect Microsoft to manually import unread emails with resume attachments. Importing does not monitor the inbox or mark messages as read.</p></div>
-              </div>
-              <div class="mailbox-control">
-                <span class="mailbox-status" id="microsoftStatus" role="status" aria-live="polite">Checking Microsoft connection...</span>
-                <div class="mailbox-actions">
-                  <button class="button button-quiet" id="microsoftConnectBtn" type="button" hidden>Connect Outlook</button>
-                  <button class="button" id="microsoftImportBtn" type="button" hidden>Import unread mail</button>
-                  <button class="button button-quiet button-small" id="microsoftDisconnectBtn" type="button" hidden>Disconnect</button>
-                </div>
-              </div>
-              <p class="match-status" id="mailImportResult" role="status" aria-live="polite"></p>
-            </div>
           </section>
 
           <section class="section" aria-labelledby="matchWorkspaceTitle">
@@ -635,34 +614,9 @@
       }
 
       async function refreshDashboard() {
-        const results = await Promise.allSettled([loadJobs(), loadStats(), loadCandidates(), refreshMicrosoftStatus()]);
+        const results = await Promise.allSettled([loadJobs(), loadStats(), loadCandidates()]);
         const failed = results.find((result) => result.status === 'rejected');
         if (failed) showToast(failed.reason.message || 'Could not load the workspace.');
-      }
-
-      async function refreshMicrosoftStatus() {
-        const status = await api('/auth/microsoft/status');
-        const connectButton = $('#microsoftConnectBtn');
-        const importButton = $('#microsoftImportBtn');
-        const disconnectButton = $('#microsoftDisconnectBtn');
-        if (!status.configured) {
-          $('#microsoftStatus').textContent = 'Microsoft sign-in is not configured yet.';
-          connectButton.hidden = true;
-          importButton.hidden = true;
-          disconnectButton.hidden = true;
-          return;
-        }
-        if (status.connected) {
-          $('#microsoftStatus').textContent = `Connected as ${status.account}`;
-          connectButton.hidden = true;
-          importButton.hidden = false;
-          disconnectButton.hidden = false;
-          return;
-        }
-        $('#microsoftStatus').textContent = 'No Outlook account connected.';
-        connectButton.hidden = false;
-        importButton.hidden = true;
-        disconnectButton.hidden = true;
       }
 
       $('#todayLabel').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
@@ -697,38 +651,6 @@
           setSignedIn(false);
           $('#loginError').textContent = '';
           $('#loginUsername').focus();
-        }
-      });
-
-      $('#microsoftConnectBtn').addEventListener('click', () => {
-        window.location.assign('/auth/microsoft/connect');
-      });
-      $('#microsoftImportBtn').addEventListener('click', async (event) => {
-        const button = event.currentTarget;
-        setBusy(button, true, 'Importing...');
-        $('#mailImportResult').textContent = 'Checking for unread messages and resume attachments...';
-        try {
-          const result = await api('/auth/microsoft/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ top: 25 })
-          });
-          $('#mailImportResult').textContent = `Checked ${result.messages_received} unread messages; added ${result.candidates_stored} candidates; skipped ${result.messages_skipped} without readable resume text.`;
-          await Promise.all([loadCandidates(), loadStats()]);
-        } catch (error) {
-          $('#mailImportResult').textContent = error.message;
-        } finally {
-          setBusy(button, false);
-        }
-      });
-      $('#microsoftDisconnectBtn').addEventListener('click', async () => {
-        try {
-          await api('/auth/microsoft/disconnect', { method: 'POST' });
-          await refreshMicrosoftStatus();
-          $('#mailImportResult').textContent = '';
-          showToast('Microsoft account disconnected.');
-        } catch (error) {
-          showToast(error.message);
         }
       });
 
@@ -851,10 +773,6 @@
       }));
 
       initializeWorkspace();
-      const mailResult = new URLSearchParams(window.location.search).get('mail');
-      if (mailResult === 'connected') showToast('Microsoft account connected.');
-      if (mailResult === 'error') showToast('Microsoft sign-in failed. Please try again.');
-      if (mailResult) window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     </script>
   </body>
 </html>

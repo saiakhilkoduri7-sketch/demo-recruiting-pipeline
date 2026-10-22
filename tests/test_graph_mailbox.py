@@ -44,60 +44,6 @@ def test_graph_mailbox_client_fetches_enriched_messages():
     assert messages[0]["attachments"][0]["name"] == "resume.txt"
 
 
-def test_graph_mailbox_client_fetches_current_user_messages_and_uses_bearer_token():
-    responses = {
-        "/me/messages?$top=5&$filter=isRead eq false": {"value": [{"id": "message-1"}]},
-        "/me/messages/message-1": {"id": "message-1"},
-        "/me/messages/message-1/attachments": {"value": []},
-    }
-    request_headers = []
-
-    def http_get(path, headers):
-        request_headers.append(headers)
-        return responses[path]
-
-    client = GraphMailboxClient(access_token="test-token", http_get_fn=http_get)
-    messages = client.fetch_current_user_messages(top=5)
-
-    assert len(messages) == 1
-    assert request_headers[0]["Authorization"] == "Bearer test-token"
-
-
-def test_ingest_current_user_messages_persists_resume(tmp_path):
-    message = {
-        "id": "personal-message",
-        "from": {"emailAddress": {"address": "applicant@example.com", "name": "Applicant"}},
-        "attachments": [
-            {
-                "name": "resume.txt",
-                "contentType": "text/plain",
-                "contentBytes": "UHl0aG9uIEZhc3RBUEk=",
-            }
-        ],
-    }
-    client = GraphMailboxClient(
-        access_token="test-token",
-        http_get_fn=lambda path, headers: (
-            {"value": [message]}
-            if path.startswith("/me/messages?")
-            else {"value": message["attachments"]}
-            if path.endswith("/attachments")
-            else message
-        ),
-    )
-    repository = CandidateRepository(db_path=str(tmp_path / "candidates.db"))
-
-    result = ingest_mailbox_candidates(
-        client,
-        repository,
-        top=5,
-        use_current_user=True,
-    )
-
-    assert result == {"messages_received": 1, "candidates_stored": 1, "messages_skipped": 0}
-    assert repository.list_candidates()[0].email == "applicant@example.com"
-
-
 def test_extract_candidates_from_messages_builds_profiles():
     messages = [
         {

@@ -97,7 +97,6 @@ decisions. Outlook mailbox variables are only needed when mailbox ingestion is e
 - Use environment variables for config and secrets
 - Set `DATABASE_URL` for PostgreSQL in production
 - Set `OUTLOOK_SHARED_MAILBOX` and `GRAPH_ACCESS_TOKEN`, then call `POST /mailbox/ingest` to import unread resumes from Outlook
-- To connect a personal Outlook.com inbox, configure the Microsoft OAuth variables below and use the dashboard's **Connect Outlook** and **Import unread mail** actions.
 - Agent 2 can call `POST /jobs/{job_id}/match-database` to rank candidates stored by Agent 1
 - Deploy behind Gunicorn + Uvicorn or Docker
 - Use a managed database and monitoring for real workloads
@@ -125,25 +124,3 @@ POST /jobs/{job_id}/match-database
 
 That endpoint reads candidates from the database, removes duplicates, ranks them against the job,
 and stores the ranking results.
-
-### Personal Outlook.com connection
-
-The dashboard can connect one Microsoft account using delegated Microsoft Graph permissions.
-Create a Microsoft Entra app registration that supports **accounts in any organizational
-directory and personal Microsoft accounts**, add a **Web** redirect URI matching the Render
-`MICROSOFT_REDIRECT_URI`, and create a client secret. Add these values in Render's service
-Environment settings:
-
-- `MICROSOFT_CLIENT_ID`: the app registration's application (client) ID
-- `MICROSOFT_CLIENT_SECRET`: the app registration client secret **value**
-- `MICROSOFT_REDIRECT_URI`: `https://<your-render-hostname>/auth/microsoft/callback`
-
-The app requests delegated `User.Read` and `Mail.Read` permissions. Sign in to the recruiter
-dashboard, select **Connect Outlook**, and authorize the account on Microsoft's page. Then use
-**Import unread mail** to manually check the inbox. It imports unread messages with readable
-resume attachments and does not mark messages as read or monitor continuously. The OAuth token
-cache is held in application memory for this test setup; reconnect Outlook after a service restart
-or redeploy. Keep this test deployment to one application worker; multi-worker or scaled
-deployments need a shared encrypted token cache. A later shared-work-mailbox integration will
-additionally need delegated shared-mail permissions and mailbox selection; this personal-inbox
-flow does not grant that access by itself.
