@@ -97,6 +97,7 @@ decisions. Outlook mailbox variables are only needed when mailbox ingestion is e
 - Use environment variables for config and secrets
 - Set `DATABASE_URL` for PostgreSQL in production
 - Set `OUTLOOK_SHARED_MAILBOX` and `GRAPH_ACCESS_TOKEN`, then call `POST /mailbox/ingest` to import unread resumes from Outlook
+- Configure Google OAuth to connect Gmail from the dashboard and manually import unread resume attachments
 - Agent 2 can call `POST /jobs/{job_id}/match-database` to rank candidates stored by Agent 1
 - Deploy behind Gunicorn + Uvicorn or Docker
 - Use a managed database and monitoring for real workloads
@@ -124,3 +125,25 @@ POST /jobs/{job_id}/match-database
 
 That endpoint reads candidates from the database, removes duplicates, ranks them against the job,
 and stores the ranking results.
+
+### Gmail demo connector
+
+The recruiter dashboard can connect one Google account using OAuth and Google's read-only Gmail
+scope. In Google Cloud Console, create a project, enable the Gmail API, configure the OAuth consent
+screen as **External**, add your own Gmail address as a test user, and create a **Web application**
+OAuth client. Register this exact authorized redirect URI:
+
+```text
+https://talentmatch-ai-hy1n.onrender.com/auth/google/callback
+```
+
+In Render service Environment, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+`GOOGLE_REDIRECT_URI` to the OAuth client values and redirect above. Keep the client secret private.
+After Render redeploys, sign in to TalentMatch and use **Connect Gmail**, then **Import unread mail**.
+The app requests Gmail read-only access, checks only unread messages in the inbox, accepts PDF,
+DOCX, TXT, MD, and CSV attachments, leaves messages unread, and stores usable candidate profiles
+in the existing `DATABASE_URL` database. Messages without a supported readable resume are skipped.
+This is a manual import, not an inbox watcher. OAuth credentials are held in application memory for
+this demo deployment; reconnect after a service restart or redeploy. Keep the service to one worker
+for this in-memory demo connector. Google OAuth apps left in Testing mode may require the Gmail
+address to be listed as a test user and can have refresh tokens expire after seven days.

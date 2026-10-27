@@ -9,15 +9,17 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import google_oauth
 from app.config import settings
 from app.database import CandidateRepository
 from app.demo_pipeline import _extract_resume_text, load_resume_candidates, run_demo_pipeline
 from app.graph_mailbox import GraphMailboxClient, ingest_mailbox_candidates
+from app.google_mailbox import GmailMailboxClient, GmailMailboxError, ingest_gmail_candidates
 from app.services import CandidateProfile, JobRequirement, RankedMatch, deduplicate_candidates, rank_candidates
 
 
@@ -51,6 +53,10 @@ class MailboxIngestRequest(BaseModel):
     mailbox_address: str | None = None
     access_token: str | None = None
     top: int = 10
+
+
+class GmailImportRequest(BaseModel):
+    top: int = Field(default=25, ge=1, le=100)
 
 
 class RankedMatchResponse(BaseModel):
@@ -108,7 +114,14 @@ app.add_middleware(
 )
 @app.middleware("http")
 async def enforce_browser_auth(request: Request, call_next):
-    public_paths = {"/", "/ui", "/health", "/auth/session", "/auth/login"}
+    public_paths = {
+        "/",
+        "/ui",
+        "/health",
+        "/auth/session",
+        "/auth/login",
+        "/auth/google/callback",
+    }
     is_public_static_file = request.url.path.startswith("/static/")
     if settings.is_production and request.method != "OPTIONS":
         if request.method not in {"GET", "HEAD"}:
@@ -138,7 +151,7 @@ app.add_middleware(
     secret_key=settings.session_secret,
     session_cookie="talentmatch_session",
     max_age=8 * 60 * 60,
-    same_site="strict",
+    same_site="lax",
     https_only=settings.is_production,
 )
 
@@ -181,8 +194,99 @@ def login(request: Request, credentials: LoginRequest) -> dict[str, bool]:
 
 @app.post("/auth/logout")
 def logout(request: Request) -> dict[str, bool]:
+    google_oauth.disconnect_account(request.session.get("google_account"))
     request.session.clear()
     return {"authenticated": False}
+
+
+@app.get("/auth/google/status")
+def google_status(request: Request) -> dict[str, str | bool | None]:
+    configured = bool(settings.google_client_id and settings.google_client_secret)
+    account = None
+    if configured:
+        account = google_oauth.get_connected_account(
+            request.session.get("google_account")
+        )
+    return {"configured": configured, "connected": account is not None, "account": account}
+
+
+@app.get("/auth/google/connect")
+def google_connect(request: Request) -> RedirectResponse:
+    if settings.is_production and not settings.google_redirect_uri:
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in redirect URL is not configured.",
+        )
+    redirect_uri = settings.google_redirect_uri or str(
+        request.url_for("google_callback")
+    )
+    try:
+        authorization_url, state = google_oauth.create_auth_flow(
+            settings,
+            redirect_uri,
+        )
+    except google_oauth.GoogleOAuthError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    request.session["google_oauth_state"] = state
+    return RedirectResponse(authorization_url, status_code=302)
+
+
+@app.get("/auth/google/callback", name="google_callback")
+def google_callback(request: Request) -> RedirectResponse:
+    expected_state = request.session.pop("google_oauth_state", "")
+    received_state = request.query_params.get("state", "")
+    if not request.session.get("authenticated") and settings.is_production:
+        google_oauth.discard_auth_flow(expected_state)
+        return RedirectResponse("/ui?gmail=signin", status_code=303)
+    if not expected_state or not received_state or not compare_digest(
+        expected_state, received_state
+    ):
+        google_oauth.discard_auth_flow(expected_state)
+        return RedirectResponse("/ui?gmail=error", status_code=303)
+    if request.query_params.get("error"):
+        google_oauth.discard_auth_flow(received_state)
+        return RedirectResponse("/ui?gmail=error", status_code=303)
+
+    try:
+        account = google_oauth.complete_auth_flow(
+            settings,
+            received_state,
+            str(request.url),
+        )
+    except google_oauth.GoogleOAuthError:
+        return RedirectResponse("/ui?gmail=error", status_code=303)
+
+    previous_account = request.session.get("google_account")
+    if previous_account and previous_account.casefold() != account.casefold():
+        google_oauth.disconnect_account(previous_account)
+    request.session["google_account"] = account
+    return RedirectResponse("/ui?gmail=connected", status_code=303)
+
+
+@app.post("/auth/google/import")
+def google_import(request: Request, import_request: GmailImportRequest) -> dict[str, int]:
+    if not settings.google_client_id or not settings.google_client_secret:
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured.")
+    try:
+        access_token = google_oauth.acquire_access_token(
+            request.session.get("google_account")
+        )
+    except google_oauth.GoogleAccountNotConnected as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    try:
+        return ingest_gmail_candidates(
+            GmailMailboxClient(access_token),
+            get_repository(),
+            top=import_request.top,
+        )
+    except GmailMailboxError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/auth/google/disconnect")
+def google_disconnect(request: Request) -> dict[str, bool]:
+    google_oauth.disconnect_account(request.session.pop("google_account", None))
+    return {"connected": False}
 
 
 @app.get("/")

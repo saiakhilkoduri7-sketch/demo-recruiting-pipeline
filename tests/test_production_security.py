@@ -61,7 +61,7 @@ def test_production_ui_uses_secure_login_session(monkeypatch):
     cookie = response.headers["set-cookie"].lower()
     assert "httponly" in cookie
     assert "secure" in cookie
-    assert "samesite=strict" in cookie
+    assert "samesite=lax" in cookie
     assert client.get("/jobs").status_code == 200
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/jobs").headers["cache-control"] == "no-store"

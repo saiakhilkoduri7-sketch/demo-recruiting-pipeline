@@ -129,6 +129,10 @@
       .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, .85fr); gap: 14px; }
       .panel { border: 1px solid var(--line); border-radius: 5px; background: var(--paper); box-shadow: var(--shadow); }
       .match-panel { padding: 21px; }
+      .gmail-panel { padding: 19px 21px; }
+      .gmail-control { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+      .gmail-status { color: var(--muted); font-size: 12px; }
+      .gmail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
       .panel-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
       .panel-title h3 { margin: 0 0 4px; font-size: 15px; }
       .panel-title p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -335,6 +339,23 @@
               <div class="stat-top"><span>Strong matches</span><span class="stat-mark" aria-hidden="true">+</span></div>
               <div class="stat-value" id="qualifiedCount">0</div>
             </article>
+          </section>
+
+          <section class="section" aria-labelledby="gmailTitle">
+            <div class="panel gmail-panel">
+              <div class="panel-title">
+                <div><div class="mini-label">Resume intake demo</div><h3 id="gmailTitle">Gmail inbox</h3><p>Connect a Google account to manually import unread inbox emails with PDF, DOCX, TXT, MD, or CSV resumes. Messages remain unread.</p></div>
+              </div>
+              <div class="gmail-control">
+                <span class="gmail-status" id="gmailStatus" role="status" aria-live="polite">Checking Gmail connection...</span>
+                <div class="gmail-actions">
+                  <button class="button button-quiet" id="googleConnectBtn" type="button" hidden>Connect Gmail</button>
+                  <button class="button" id="googleImportBtn" type="button" hidden>Import unread mail</button>
+                  <button class="button button-quiet button-small" id="googleDisconnectBtn" type="button" hidden>Disconnect</button>
+                </div>
+              </div>
+              <p class="match-status" id="gmailImportResult" role="status" aria-live="polite"></p>
+            </div>
           </section>
 
           <section class="section" aria-labelledby="matchWorkspaceTitle">
@@ -614,9 +635,34 @@
       }
 
       async function refreshDashboard() {
-        const results = await Promise.allSettled([loadJobs(), loadStats(), loadCandidates()]);
+        const results = await Promise.allSettled([loadJobs(), loadStats(), loadCandidates(), refreshGmailStatus()]);
         const failed = results.find((result) => result.status === 'rejected');
         if (failed) showToast(failed.reason.message || 'Could not load the workspace.');
+      }
+
+      async function refreshGmailStatus() {
+        const status = await api('/auth/google/status');
+        const connectButton = $('#googleConnectBtn');
+        const importButton = $('#googleImportBtn');
+        const disconnectButton = $('#googleDisconnectBtn');
+        if (!status.configured) {
+          $('#gmailStatus').textContent = 'Google sign-in is not configured yet.';
+          connectButton.hidden = true;
+          importButton.hidden = true;
+          disconnectButton.hidden = true;
+          return;
+        }
+        if (status.connected) {
+          $('#gmailStatus').textContent = `Connected as ${status.account}`;
+          connectButton.hidden = true;
+          importButton.hidden = false;
+          disconnectButton.hidden = false;
+          return;
+        }
+        $('#gmailStatus').textContent = 'No Gmail account connected.';
+        connectButton.hidden = false;
+        importButton.hidden = true;
+        disconnectButton.hidden = true;
       }
 
       $('#todayLabel').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
@@ -651,6 +697,38 @@
           setSignedIn(false);
           $('#loginError').textContent = '';
           $('#loginUsername').focus();
+        }
+      });
+
+      $('#googleConnectBtn').addEventListener('click', () => {
+        window.location.assign('/auth/google/connect');
+      });
+      $('#googleImportBtn').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        setBusy(button, true, 'Importing...');
+        $('#gmailImportResult').textContent = 'Checking unread inbox messages for supported resume attachments...';
+        try {
+          const result = await api('/auth/google/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ top: 25 })
+          });
+          $('#gmailImportResult').textContent = `Checked ${result.messages_received} unread messages; added ${result.candidates_stored} candidates; skipped ${result.messages_skipped} without a supported, readable resume attachment. Messages remain unread.`;
+          await Promise.all([loadCandidates(), loadStats()]);
+        } catch (error) {
+          $('#gmailImportResult').textContent = error.message;
+        } finally {
+          setBusy(button, false);
+        }
+      });
+      $('#googleDisconnectBtn').addEventListener('click', async () => {
+        try {
+          await api('/auth/google/disconnect', { method: 'POST' });
+          await refreshGmailStatus();
+          $('#gmailImportResult').textContent = '';
+          showToast('Gmail account disconnected.');
+        } catch (error) {
+          showToast(error.message);
         }
       });
 
@@ -773,6 +851,10 @@
       }));
 
       initializeWorkspace();
+      const gmailResult = new URLSearchParams(window.location.search).get('gmail');
+      if (gmailResult === 'connected') showToast('Gmail account connected.');
+      if (gmailResult === 'error') showToast('Google sign-in failed. Please try again.');
+      if (gmailResult) window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     </script>
   </body>
 </html>
