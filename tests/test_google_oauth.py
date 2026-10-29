@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from time import monotonic
 
 import pytest
 
@@ -24,7 +25,7 @@ class FakeFlow:
     @classmethod
     def from_client_config(cls, client_config, scopes):
         assert client_config["web"]["client_id"] == "client-id"
-        assert "https://www.googleapis.com/auth/gmail.readonly" in scopes
+        assert scopes == ["https://www.googleapis.com/auth/gmail.readonly"]
         return cls()
 
     def authorization_url(self, **kwargs):
@@ -64,14 +65,14 @@ def test_google_oauth_authorization_and_refresh(configured_google_oauth, monkeyp
             return None
 
         def json(self):
-            return {"email": "recruiter@gmail.com"}
+            return {"emailAddress": "recruiter@gmail.com"}
 
     class FakeAuthorizedSession:
         def __init__(self, _credentials):
             assert _credentials is credentials
 
         def get(self, url, timeout):
-            assert url == "https://openidconnect.googleapis.com/v1/userinfo"
+            assert url == "https://gmail.googleapis.com/gmail/v1/users/me/profile"
             assert timeout == 15
             return FakeResponse()
 
@@ -110,3 +111,29 @@ def test_google_oauth_rejects_missing_client_configuration():
 
     with pytest.raises(google_oauth.GoogleOAuthError, match="not configured"):
         google_oauth.create_auth_flow(settings, "https://example.test/callback")
+
+
+def test_google_oauth_reports_scope_mismatch_safely(configured_google_oauth, monkeypatch):
+    settings, _ = configured_google_oauth
+
+    def reject_scope(authorization_response):
+        raise Warning("private scope data")
+
+    google_oauth._pending_flows["test-state"] = (
+        SimpleNamespace(fetch_token=reject_scope),
+        monotonic(),
+    )
+
+    with pytest.raises(
+        google_oauth.GoogleOAuthError,
+        match="different permission scope",
+    ) as error:
+        google_oauth.complete_auth_flow(
+            settings,
+            "test-state",
+            "https://example.test/callback?code=private-authorization-code",
+        )
+
+    assert error.value.code == "scope_mismatch"
+    assert "private scope data" not in str(error.value)
+    assert "private-authorization-code" not in str(error.value)

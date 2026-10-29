@@ -11,7 +11,6 @@ from google_auth_oauthlib.flow import Flow
 from app.config import Settings
 
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
-OPENID_SCOPES = ["openid", "email"]
 FLOW_TTL_SECONDS = 600
 MAX_PENDING_FLOWS = 20
 
@@ -48,11 +47,10 @@ def _client_config(settings: Settings) -> dict:
 
 def create_auth_flow(settings: Settings, redirect_uri: str) -> tuple[str, str]:
     config = _client_config(settings)
-    flow = Flow.from_client_config(config, scopes=[*OPENID_SCOPES, GMAIL_READONLY_SCOPE])
+    flow = Flow.from_client_config(config, scopes=[GMAIL_READONLY_SCOPE])
     flow.redirect_uri = redirect_uri
     authorization_url, state = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent",
     )
     with _lock:
@@ -91,6 +89,13 @@ def complete_auth_flow(
         flow = pending[0]
         try:
             flow.fetch_token(authorization_response=authorization_response)
+        except Warning as exc:
+            logger.warning("Google OAuth token exchange rejected a scope mismatch.")
+            raise GoogleOAuthError(
+                "Google granted a different permission scope than TalentMatch requested. "
+                "Reconnect after deploying the Gmail permission fix.",
+                code="scope_mismatch",
+            ) from exc
         except Exception as exc:
             logger.warning(
                 "Google OAuth token exchange failed (%s).",
@@ -104,11 +109,11 @@ def complete_auth_flow(
 
     try:
         response = AuthorizedSession(credentials).get(
-            "https://openidconnect.googleapis.com/v1/userinfo",
+            "https://gmail.googleapis.com/gmail/v1/users/me/profile",
             timeout=15,
         )
         response.raise_for_status()
-        email = response.json().get("email")
+        email = response.json().get("emailAddress")
     except Exception as exc:
         logger.warning(
             "Google OAuth account verification failed (%s).",
