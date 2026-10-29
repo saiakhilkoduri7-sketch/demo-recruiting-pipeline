@@ -242,10 +242,10 @@ def google_callback(request: Request) -> RedirectResponse:
         expected_state, received_state
     ):
         google_oauth.discard_auth_flow(expected_state)
-        return RedirectResponse("/ui?gmail=error", status_code=303)
+        return RedirectResponse("/ui?gmail=state_error", status_code=303)
     if request.query_params.get("error"):
         google_oauth.discard_auth_flow(received_state)
-        return RedirectResponse("/ui?gmail=error", status_code=303)
+        return RedirectResponse("/ui?gmail=access_denied", status_code=303)
 
     try:
         account = google_oauth.complete_auth_flow(
@@ -253,8 +253,8 @@ def google_callback(request: Request) -> RedirectResponse:
             received_state,
             str(request.url),
         )
-    except google_oauth.GoogleOAuthError:
-        return RedirectResponse("/ui?gmail=error", status_code=303)
+    except google_oauth.GoogleOAuthError as exc:
+        return RedirectResponse(f"/ui?gmail={exc.code}", status_code=303)
 
     previous_account = request.session.get("google_account")
     if previous_account and previous_account.casefold() != account.casefold():

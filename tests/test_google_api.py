@@ -132,3 +132,47 @@ def test_google_import_requires_configured_connector(monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Google sign-in is not configured."
+
+
+def test_google_oauth_failure_returns_safe_diagnostic_code(monkeypatch):
+    api_module = _reload_production_app(monkeypatch)
+    client = TestClient(api_module.app, base_url="https://testserver")
+    monkeypatch.setattr(
+        api_module,
+        "get_repository",
+        lambda: SimpleNamespace(check_connection=lambda: None),
+    )
+    login = client.post(
+        "/auth/login",
+        headers={"Origin": "https://testserver"},
+        json={"username": "recruiter", "password": "a-long-unique-password"},
+    )
+    assert login.status_code == 200
+    monkeypatch.setattr(
+        api_module.google_oauth,
+        "create_auth_flow",
+        lambda settings, redirect_uri: (
+            "https://accounts.google.com/authorize",
+            "diagnostic-state",
+        ),
+    )
+    assert client.get("/auth/google/connect", follow_redirects=False).status_code == 302
+    monkeypatch.setattr(
+        api_module.google_oauth,
+        "complete_auth_flow",
+        lambda settings, state, authorization_response: (_ for _ in ()).throw(
+            api_module.google_oauth.GoogleOAuthError(
+                "Safe message",
+                code="token_exchange",
+            )
+        ),
+    )
+
+    callback = client.get(
+        "/auth/google/callback?state=diagnostic-state&code=secret-code",
+        follow_redirects=False,
+    )
+
+    assert callback.status_code == 303
+    assert callback.headers["location"] == "/ui?gmail=token_exchange"
+    assert "secret-code" not in callback.headers["location"]

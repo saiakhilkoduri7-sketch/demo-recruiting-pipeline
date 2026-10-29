@@ -96,12 +96,13 @@ def test_google_oauth_authorization_and_refresh(configured_google_oauth, monkeyp
 def test_google_oauth_rejects_replayed_state(configured_google_oauth):
     settings, _ = configured_google_oauth
 
-    with pytest.raises(google_oauth.GoogleOAuthError, match="expired"):
+    with pytest.raises(google_oauth.GoogleOAuthError, match="expired") as error:
         google_oauth.complete_auth_flow(
             settings,
             "unknown-state",
             "https://example.test/auth/google/callback?state=unknown-state&code=code",
         )
+    assert error.value.code == "flow_expired"
 
 
 def test_google_oauth_rejects_missing_client_configuration():

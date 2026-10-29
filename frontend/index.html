@@ -852,8 +852,21 @@
 
       initializeWorkspace();
       const gmailResult = new URLSearchParams(window.location.search).get('gmail');
-      if (gmailResult === 'connected') showToast('Gmail account connected.');
-      if (gmailResult === 'error') showToast('Google sign-in failed. Please try again.');
+      const gmailMessages = {
+        connected: 'Gmail account connected.',
+        signin: 'Sign in to TalentMatch first, then connect Gmail.',
+        state_error: 'Google sign-in state did not match. Retry Connect Gmail in the same browser tab.',
+        access_denied: 'Google access was not approved. Restart Connect Gmail and approve the requested read-only access.',
+        flow_expired: 'The Google sign-in expired. Restart Connect Gmail and finish promptly.',
+        token_exchange: 'Google could not complete authorization. Recheck the OAuth client ID, secret value, and redirect URI in Render and Google Cloud.',
+        account_verification: 'Google authorization succeeded, but TalentMatch could not verify the Google account. Check Render logs for a safe error category.',
+        missing_email: 'Google did not return an account email. Check the OAuth consent configuration and reconnect.',
+        oauth_error: 'Google sign-in failed. Check Render logs for the OAuth failure category.'
+      };
+      if (gmailMessages[gmailResult]) {
+        if (gmailResult === 'connected') showToast(gmailMessages[gmailResult]);
+        else $('#gmailImportResult').textContent = gmailMessages[gmailResult];
+      }
       if (gmailResult) window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     </script>
   </body>

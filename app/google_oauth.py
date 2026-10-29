@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from threading import RLock
 from time import monotonic
 
@@ -14,9 +15,13 @@ OPENID_SCOPES = ["openid", "email"]
 FLOW_TTL_SECONDS = 600
 MAX_PENDING_FLOWS = 20
 
+logger = logging.getLogger(__name__)
+
 
 class GoogleOAuthError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "oauth_error") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class GoogleAccountNotConnected(GoogleOAuthError):
@@ -79,12 +84,22 @@ def complete_auth_flow(
     with _lock:
         pending = _pending_flows.pop(state, None)
         if pending is None or monotonic() - pending[1] > FLOW_TTL_SECONDS:
-            raise GoogleOAuthError("Google sign-in expired. Please try again.")
+            raise GoogleOAuthError(
+                "Google sign-in expired. Please try again.",
+                code="flow_expired",
+            )
         flow = pending[0]
         try:
             flow.fetch_token(authorization_response=authorization_response)
         except Exception as exc:
-            raise GoogleOAuthError("Google sign-in failed. Please try again.") from exc
+            logger.warning(
+                "Google OAuth token exchange failed (%s).",
+                type(exc).__name__,
+            )
+            raise GoogleOAuthError(
+                "Google could not complete the token exchange.",
+                code="token_exchange",
+            ) from exc
         credentials = flow.credentials
 
     try:
@@ -95,9 +110,19 @@ def complete_auth_flow(
         response.raise_for_status()
         email = response.json().get("email")
     except Exception as exc:
-        raise GoogleOAuthError("Could not verify the connected Google account.") from exc
+        logger.warning(
+            "Google OAuth account verification failed (%s).",
+            type(exc).__name__,
+        )
+        raise GoogleOAuthError(
+            "Google authorization succeeded, but account verification failed.",
+            code="account_verification",
+        ) from exc
     if not isinstance(email, str) or not email.strip():
-        raise GoogleOAuthError("Google did not return an email address.")
+        raise GoogleOAuthError(
+            "Google did not return an email address.",
+            code="missing_email",
+        )
 
     with _lock:
         _credentials_by_email[email.casefold()] = credentials
