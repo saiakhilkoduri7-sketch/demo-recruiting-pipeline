@@ -132,3 +132,5 @@ def test_gmail_import_saves_supported_resume_and_skips_email_without_attachment(
     assert candidate.id == "candidate-gmail-with-resume"
     assert candidate.email == "a@example.com"
     assert candidate.resume_text == "Python FastAPI"
+    resume = repository.get_candidate_resume(candidate.id, f"{candidate.id}-0")
+    assert resume == ("resume.txt", "text/plain", b"Python FastAPI")

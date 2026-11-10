@@ -199,6 +199,10 @@
       .candidate-row { cursor: pointer; transition: background .15s ease; }
       .candidate-row:hover, .candidate-row.active { background: #f4f8f3; }
       .candidate-contact { margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .resume-downloads { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+      .resume-download { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--forest-2); font-size: 11px; font-weight: 700; text-decoration: none; }
+      .resume-download:hover { background: #f4f8f3; }
+      .resume-filename { color: var(--muted); font-weight: 400; overflow-wrap: anywhere; }
       .candidate-detail { padding: 20px; border-left: 1px solid var(--line); background: #fbfcfa; }
       .detail-placeholder { display: grid; min-height: 220px; align-content: center; justify-items: center; color: var(--muted); text-align: center; }
       .detail-placeholder .avatar { width: 42px; height: 42px; margin-bottom: 11px; font-size: 13px; }
@@ -594,13 +598,21 @@
       function renderCandidateDetail(candidate) {
         const skills = candidate.skills || [];
         const resume = candidate.resume_text || '';
+        const resumeDownloads = (candidate.resumes || []).map((item) => {
+          const filename = item.filename || 'Resume file';
+          return `
+            <a class="resume-download" href="/candidates/${encodeURIComponent(candidate.id)}/resumes/${encodeURIComponent(item.id)}/download" download aria-label="Download resume: ${escapeHtml(filename)}">
+              <span>Download resume</span><span class="resume-filename">${escapeHtml(filename)}</span>
+            </a>`;
+        }).join('');
         candidateDetail.innerHTML = `
           <div class="mini-label">Candidate profile</div>
           <h3 class="detail-name">${escapeHtml(candidate.name)}</h3>
           <p class="detail-contact">${escapeHtml(candidate.email || 'Email not provided')}<br>${escapeHtml(candidate.phone || 'Phone not provided')}</p>
           <div class="detail-label">Experience</div><div class="detail-empty">${candidate.experience_years == null ? 'Not specified' : `${escapeHtml(candidate.experience_years)} years`}</div>
           <div class="detail-label">Skills</div><div class="skill-list">${skills.length ? skills.map((skill) => `<span class="skill-tag">${escapeHtml(skill)}</span>`).join('') : '<span class="detail-empty">No skills recorded</span>'}</div>
-          <div class="detail-label">Resume preview</div><p class="resume-excerpt">${escapeHtml(resume.slice(0, 750))}${resume.length > 750 ? '...' : ''}</p>`;
+          <div class="detail-label">Resume preview</div><p class="resume-excerpt">${escapeHtml(resume.slice(0, 750))}${resume.length > 750 ? '...' : ''}</p>
+          ${resumeDownloads ? `<div class="resume-downloads">${resumeDownloads}</div>` : '<div class="detail-empty">Original resume file is not saved. If this candidate came from Gmail, import unread messages again to save the attachment for download.</div>'}`;
       }
 
       function renderCandidates() {

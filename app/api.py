@@ -5,11 +5,12 @@ import uuid
 from functools import lru_cache
 from hmac import compare_digest
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
@@ -74,6 +75,7 @@ class CandidateDetailResponse(BaseModel):
     resume_text: str
     skills: list[str]
     experience_years: int | None
+    resumes: list[dict[str, str]]
 
 
 class CandidateUploadResponse(BaseModel):
@@ -93,6 +95,15 @@ class HealthCheckTrustedHostMiddleware:
             await self.app(scope, receive, send)
             return
         await self.trusted_host_middleware(scope, receive, send)
+
+
+RESUME_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".csv": "text/csv",
+}
 
 
 app = FastAPI(
@@ -425,8 +436,31 @@ def get_candidate_detail(candidate_id: str) -> CandidateDetailResponse:
                 resume_text=candidate.resume_text,
                 skills=candidate.skills,
                 experience_years=candidate.experience_years,
+                resumes=repository.list_candidate_resumes(candidate.id),
             )
     raise HTTPException(status_code=404, detail="Candidate not found")
+
+
+@app.get("/candidates/{candidate_id}/resumes/{resume_id}/download")
+def download_candidate_resume(candidate_id: str, resume_id: str) -> Response:
+    repository = get_repository()
+    resume = repository.get_candidate_resume(candidate_id, resume_id)
+    if resume is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    filename, _, contents = resume
+    safe_filename = Path(filename).name
+    content_type = RESUME_CONTENT_TYPES.get(Path(safe_filename).suffix.lower())
+    if not safe_filename or content_type is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    return Response(
+        content=contents,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(safe_filename)}",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.delete("/candidates/{candidate_id}")
@@ -478,7 +512,16 @@ def upload_candidate(
         )
 
         repository = get_repository()
-        repository.save_candidate(candidate)
+        repository.save_candidate(
+            candidate,
+            resumes=[
+                (
+                    Path(file.filename).name,
+                    RESUME_CONTENT_TYPES[suffix],
+                    contents,
+                )
+            ],
+        )
 
         return CandidateUploadResponse(
             id=candidate.id,

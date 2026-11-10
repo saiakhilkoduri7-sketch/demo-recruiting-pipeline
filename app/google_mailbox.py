@@ -167,10 +167,27 @@ def ingest_gmail_candidates(
     skipped = 0
     for message in messages:
         candidate: CandidateProfile = process_email_message(message)
-        if not candidate.resume_text.strip() or not message.get("attachments"):
+        resumes: list[tuple[str, str, bytes]] = []
+        for attachment in message.get("attachments", []):
+            try:
+                content = base64.b64decode(
+                    attachment.get("contentBytes", ""),
+                    validate=True,
+                )
+            except (ValueError, TypeError):
+                continue
+            if content and len(content) <= 10 * 1024 * 1024:
+                resumes.append(
+                    (
+                        Path(attachment.get("name", "resume")).name,
+                        attachment.get("contentType", "application/octet-stream"),
+                        content,
+                    )
+                )
+        if not candidate.resume_text.strip() or not resumes:
             skipped += 1
             continue
-        repository.save_candidate(candidate)
+        repository.save_candidate(candidate, resumes=resumes)
         stored += 1
     return {
         "messages_received": len(messages),

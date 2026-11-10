@@ -77,6 +77,17 @@ class CandidateRepository:
                         )
                         """
                     )
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS candidate_resumes (
+                            id TEXT PRIMARY KEY,
+                            candidate_id TEXT NOT NULL,
+                            filename TEXT NOT NULL,
+                            content_type TEXT NOT NULL,
+                            content BYTEA NOT NULL
+                        )
+                        """
+                    )
                 conn.commit()
             return
 
@@ -114,6 +125,17 @@ class CandidateRepository:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS candidate_resumes (
+                    id TEXT PRIMARY KEY,
+                    candidate_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    content BLOB NOT NULL
+                )
+                """
+            )
             conn.commit()
 
     def _row_to_candidate(self, row: tuple) -> CandidateProfile:
@@ -141,7 +163,11 @@ class CandidateRepository:
             matched_skills=json.loads(row[3]) if row[3] else [],
         )
 
-    def save_candidate(self, candidate: CandidateProfile) -> None:
+    def save_candidate(
+        self,
+        candidate: CandidateProfile,
+        resumes: list[tuple[str, str, bytes]] | None = None,
+    ) -> None:
         if self._uses_postgres():
             with self._connect_postgres() as conn:
                 with conn.cursor() as cur:
@@ -168,15 +194,45 @@ class CandidateRepository:
                             candidate.experience_years,
                         ),
                     )
+                    if resumes is not None:
+                        cur.execute(
+                            "DELETE FROM candidate_resumes WHERE candidate_id = %s",
+                            (candidate.id,),
+                        )
+                        for resume_id, filename, content_type, content in (
+                            (f"{candidate.id}-{index}", *resume)
+                            for index, resume in enumerate(resumes)
+                        ):
+                            cur.execute(
+                                """
+                                INSERT INTO candidate_resumes
+                                    (id, candidate_id, filename, content_type, content)
+                                VALUES (%s, %s, %s, %s, %s)
+                                """,
+                                (
+                                    resume_id,
+                                    candidate.id,
+                                    filename,
+                                    content_type,
+                                    content,
+                                ),
+                            )
                 conn.commit()
             return
 
         with self._connect_sqlite() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO candidates (
+                INSERT INTO candidates (
                     id, name, email, phone, resume_text, skills, experience_years
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    email = excluded.email,
+                    phone = excluded.phone,
+                    resume_text = excluded.resume_text,
+                    skills = excluded.skills,
+                    experience_years = excluded.experience_years
                 """,
                 (
                     candidate.id,
@@ -188,7 +244,71 @@ class CandidateRepository:
                     candidate.experience_years,
                 ),
             )
+            if resumes is not None:
+                conn.execute(
+                    "DELETE FROM candidate_resumes WHERE candidate_id = ?",
+                    (candidate.id,),
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO candidate_resumes
+                        (id, candidate_id, filename, content_type, content)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (f"{candidate.id}-{index}", candidate.id, *resume)
+                        for index, resume in enumerate(resumes)
+                    ],
+                )
             conn.commit()
+
+    def list_candidate_resumes(self, candidate_id: str) -> list[dict[str, str]]:
+        query = """
+            SELECT id, filename, content_type
+            FROM candidate_resumes
+            WHERE candidate_id = %s
+            ORDER BY id
+        """
+        if self._uses_postgres():
+            with self._connect_postgres() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (candidate_id,))
+                    rows = cur.fetchall()
+        else:
+            with self._connect_sqlite() as conn:
+                rows = conn.execute(
+                    query.replace("%s", "?"),
+                    (candidate_id,),
+                ).fetchall()
+        return [
+            {"id": row[0], "filename": row[1], "content_type": row[2]}
+            for row in rows
+        ]
+
+    def get_candidate_resume(
+        self,
+        candidate_id: str,
+        resume_id: str,
+    ) -> tuple[str, str, bytes] | None:
+        query = """
+            SELECT filename, content_type, content
+            FROM candidate_resumes
+            WHERE candidate_id = %s AND id = %s
+        """
+        if self._uses_postgres():
+            with self._connect_postgres() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (candidate_id, resume_id))
+                    row = cur.fetchone()
+        else:
+            with self._connect_sqlite() as conn:
+                row = conn.execute(
+                    query.replace("%s", "?"),
+                    (candidate_id, resume_id),
+                ).fetchone()
+        if row is None:
+            return None
+        return row[0], row[1], bytes(row[2])
 
     def save_job(self, job: JobRequirement) -> None:
         if self._uses_postgres():
@@ -263,12 +383,20 @@ class CandidateRepository:
             with self._connect_postgres() as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM rankings WHERE candidate_id = %s", (candidate_id,))
+                    cur.execute(
+                        "DELETE FROM candidate_resumes WHERE candidate_id = %s",
+                        (candidate_id,),
+                    )
                     cur.execute("DELETE FROM candidates WHERE id = %s", (candidate_id,))
                 conn.commit()
             return
 
         with self._connect_sqlite() as conn:
             conn.execute("DELETE FROM rankings WHERE candidate_id = ?", (candidate_id,))
+            conn.execute(
+                "DELETE FROM candidate_resumes WHERE candidate_id = ?",
+                (candidate_id,),
+            )
             conn.execute("DELETE FROM candidates WHERE id = ?", (candidate_id,))
             conn.commit()
 
